@@ -1,7 +1,5 @@
 # NovelMind - 小说剧情拆解与人物关系分析系统
 
-> 项目灵感来源: [MiroFish](https://github.com/666ghj/MiroFish) - 群体智能预测引擎
-
 ## 一、项目概述
 
 **NovelMind** 是一款基于 AI 技术的小说剧情拆解与人物关系分析桌面应用。专注于：
