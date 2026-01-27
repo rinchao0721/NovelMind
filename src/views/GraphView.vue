@@ -163,7 +163,7 @@ import { useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { ZoomIn, ZoomOut, FullScreen, Download, Share, Loading } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel, GraphData, GraphNode, GraphLink } from '@/types'
+import type { Novel, GraphData } from '@/types'
 
 const route = useRoute()
 const novelStore = useNovelStore()
@@ -272,7 +272,7 @@ const updateGraph = () => {
     },
     series: [{
       type: 'graph',
-      layout: layoutType.value,
+      layout: layoutType.value as 'none' | 'force' | 'circular',
       data: filteredNodes.value.map(node => ({
         ...node,
         symbolSize: node.importance * 50 + 20,

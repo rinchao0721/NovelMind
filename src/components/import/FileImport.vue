@@ -56,11 +56,9 @@
 import { ref } from 'vue'
 import type { UploadFile } from 'element-plus'
 
-const props = withDefaults(defineProps<{
+defineProps<{
   acceptFormats?: string
-}>(), {
-  acceptFormats: '.txt,.docx,.epub,.mobi'
-})
+}>()
 
 const emit = defineEmits<{
   (e: 'import', file: File): void

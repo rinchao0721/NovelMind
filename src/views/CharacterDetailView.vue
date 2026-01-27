@@ -127,14 +127,14 @@ const character = ref({
   ]
 })
 
-const getRelationType = (type: string) => {
-  const map: Record<string, string> = {
+const getRelationType = (type: string): 'success' | 'warning' | 'info' | 'primary' | 'danger' => {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'primary' | 'danger'> = {
     lover: 'danger',
     spouse: 'warning',
     family: 'success',
     friend: 'primary',
     servant: 'info',
-    enemy: ''
+    enemy: 'info'
   }
   return map[type] || 'info'
 }

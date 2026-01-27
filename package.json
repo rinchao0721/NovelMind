@@ -72,7 +72,6 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "resources/icons/icon.ico",
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
     "mac": {
@@ -82,7 +81,6 @@
           "arch": ["x64", "arm64"]
         }
       ],
-      "icon": "resources/icons/icon.icns",
       "category": "public.app-category.productivity"
     },
     "linux": {
@@ -96,7 +94,6 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "resources/icons",
       "category": "Office"
     },
     "nsis": {
@@ -104,10 +101,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "NovelMind",
-      "installerIcon": "resources/icons/icon.ico",
-      "uninstallerIcon": "resources/icons/icon.ico",
-      "include": "resources/installer.nsh"
+      "shortcutName": "NovelMind"
     },
     "extraResources": [
       {

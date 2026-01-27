@@ -155,8 +155,8 @@ const openNovel = (id: string) => {
   router.push(`/analysis?id=${id}`)
 }
 
-const getStatusType = (status: string) => {
-  const map: Record<string, string> = {
+const getStatusType = (status: string): 'success' | 'warning' | 'info' | 'primary' | 'danger' => {
+  const map: Record<string, 'success' | 'warning' | 'info' | 'primary' | 'danger'> = {
     pending: 'info',
     analyzing: 'warning',
     completed: 'success',
