@@ -2,7 +2,6 @@
 
 <div align="center">
 
-**AI-powered novel analysis and character relationship visualization tool**
 **AI 驱动的小说剧情分析与人物关系可视化工具**
 
 [![License](https://img.shields.io/github/license/rinchao0721/NovelMind)](LICENSE)
@@ -10,73 +9,66 @@
 
 一款基于 Electron + Vue 3 + Python 的桌面应用，使用大语言模型自动分析小说结构、提取人物关系，并以精美图谱呈现。
 
-[Quick Start](#🚀-quick-start) • [Features](#✨-features) • [Tech Stack](#🛠️-tech-stack)
+[快速开始](#-快速开始) • [功能特性](#-功能特性) • [技术栈](#-技术栈)
 
 </div>
 
 ---
 
-## ✨ Features
+## ✨ 功能特性
 
-- **🤖 AI Extraction**: Automatically identify characters, aliases, personalities, and plot points.
-- **📊 Interactive Graph**: Visualize relationship networks with force-directed graphs.
-- **📖 Multi-Format**: Support for `.txt`, `.docx`, `.epub`, and `.mobi`.
-- **🔌 Multi-LLM**: Integration with OpenAI, Claude, Gemini, DeepSeek, Qwen, Zhipu, and Baidu.
-- **🔒 Privacy First**: Local storage with encrypted API key management.
-- **📤 Export**: Export results to JSON, Markdown, or high-res PNG.
+- **🤖 AI 智能提取**：自动识别小说中的角色、别名、性格特征及关键剧情点。
+- **📊 交互式图谱**：使用力导向图可视化人物关系网络，支持拖拽和缩放。
+- **📖 多格式支持**：支持导入 `.txt`、`.docx`、`.epub` 和 `.mobi` 格式文件。
+- **🔌 多模型集成**：支持 OpenAI、Claude、Gemini、DeepSeek、阿里百炼(Qwen)、智谱 AI 和百度文心。
+- **🔒 隐私优先**：数据本地存储，API 密钥加密保存，保护您的隐私。
+- **📤 数据导出**：支持将分析结果导出为 JSON、Markdown 文档或高清 PNG 图片。
 
 ---
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### Prerequisites
-- **Node.js**: 18.x or higher
-- **Python**: 3.11 or 3.12
-- **uv**: (Recommended) Fast Python package manager
+### 环境要求
+- **Node.js**: 18.x 或更高版本
+- **Python**: 3.11 或 3.12
+- **uv**: (推荐) 快速 Python 包管理器
 
-### Installation & Run
+### 安装与运行
 ```bash
-# 1. Clone the repository
+# 1. 克隆仓库
 git clone https://github.com/rinchao0721/NovelMind.git
 cd NovelMind
 
-# 2. Install dependencies (Automated)
+# 2. 安装依赖 (自动安装前后端依赖)
 npm run setup
 
-# 3. Start development mode
+# 3. 启动开发模式
 npm run dev
 ```
-*App will launch at `http://localhost:3000` (Frontend) and `http://localhost:5001` (Backend).*
+*应用将自动启动，前端运行在 `http://localhost:3000`，后端运行在 `http://localhost:5001`。*
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ 技术栈
 
-| Category | Technologies |
+| 类别 | 技术 |
 |----------|--------------|
-| **Desktop** | Electron 28 |
-| **Frontend**| Vue 3, TypeScript, Vite, Element Plus, Pinia |
-| **Data Viz**| ECharts 5.5 |
-| **Backend** | FastAPI, SQLite, Neo4j (Optional) |
-| **Security**| AES-256 Encryption |
+| **桌面框架** | Electron 28 |
+| **前端**| Vue 3, TypeScript, Vite, Element Plus, Pinia |
+| **可视化**| ECharts 5.5 |
+| **后端** | FastAPI, SQLite, Neo4j (可选) |
+| **安全**| AES-256 加密 |
 
 ---
 
-## 📦 Build & Release
+## 📦 打包
 
 ```bash
-# Build for Windows
+# 构建 Windows 安装包
 npm run build:win
 
-# Build for macOS
+# 构建 macOS 安装包
 npm run build:mac
 ```
 
----
-
-## 📄 License & Credits
-
-- Licensed under **MIT**.
-- Inspired by [MiroFish](https://github.com/666ghj/MiroFish).
-
----
+- 本项目采用 **MIT** 许可证。
