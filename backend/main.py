@@ -1,0 +1,70 @@
+"""
+NovelMind Backend - FastAPI Application Entry Point
+"""
+
+import os
+import sys
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from config import settings
+from api import novels, analysis, characters, settings as settings_api, export
+from database.sqlite_db import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler"""
+    # Startup
+    print("Starting NovelMind Backend...")
+    await init_db()
+    print(f"Database initialized at: {settings.DATABASE_PATH}")
+    yield
+    # Shutdown
+    print("Shutting down NovelMind Backend...")
+
+
+app = FastAPI(
+    title="NovelMind API",
+    description="AI-powered novel plot analysis and character relationship visualization",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register routers
+app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
+app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
+app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
+app.include_router(export.router, prefix="/api/export", tags=["export"])
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"name": "NovelMind API", "version": "1.0.0", "status": "running"}
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("APP_PORT", 5001))
+    debug = os.getenv("APP_DEBUG", "false").lower() == "true"
+
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=debug, log_level="info")

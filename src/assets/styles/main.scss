@@ -1,0 +1,176 @@
+// 全局 CSS 变量和样式
+
+:root {
+  // 颜色系统
+  --primary-color: #409eff;
+  --primary-light: #79bbff;
+  --primary-dark: #337ecc;
+  
+  --success-color: #67c23a;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --info-color: #909399;
+
+  // 背景色
+  --bg-color: #f5f7fa;
+  --sidebar-bg: #ffffff;
+  --card-bg: #ffffff;
+  --hover-bg: #f0f2f5;
+
+  // 文字色
+  --text-color: #303133;
+  --text-color-secondary: #606266;
+  --text-color-placeholder: #a8abb2;
+
+  // 边框
+  --border-color: #e4e7ed;
+  --border-color-light: #ebeef5;
+
+  // 阴影
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  // 圆角
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  // 过渡
+  --transition: all 0.2s ease;
+}
+
+// 暗色主题
+html.dark {
+  --bg-color: #141414;
+  --sidebar-bg: #1d1d1d;
+  --card-bg: #1d1d1d;
+  --hover-bg: #262626;
+  
+  --text-color: #e5eaf3;
+  --text-color-secondary: #a3a6ad;
+  --text-color-placeholder: #8d9095;
+  
+  --border-color: #414243;
+  --border-color-light: #363637;
+}
+
+// 全局重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--text-color-placeholder);
+  }
+}
+
+// 通用卡片样式
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+
+  &:hover {
+    box-shadow: var(--shadow);
+  }
+}
+
+// 页面标题
+.page-header {
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin: 0 0 8px;
+  }
+
+  p {
+    color: var(--text-color-secondary);
+    margin: 0;
+  }
+}
+
+// 空状态
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-color-secondary);
+
+  .el-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+    color: var(--border-color);
+  }
+
+  h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text-color);
+  }
+
+  p {
+    margin-bottom: 20px;
+  }
+}
+
+// 加载状态
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  
+  .loading-text {
+    margin-top: 16px;
+    color: var(--text-color-secondary);
+  }
+}
+
+// 表格样式覆盖
+.el-table {
+  --el-table-border-color: var(--border-color);
+  --el-table-header-bg-color: var(--hover-bg);
+}
+
+// Element Plus 主题覆盖
+.el-button--primary {
+  --el-button-bg-color: var(--primary-color);
+  --el-button-border-color: var(--primary-color);
+}
