@@ -15,16 +15,21 @@ from api import novels, analysis, characters, settings as settings_api, export
 from database.sqlite_db import init_db
 
 
+import logging
+from utils.logger import setup_logger
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
     # Startup
-    print("Starting NovelMind Backend...")
+    logger = setup_logger()
+    logger.info("Starting NovelMind Backend...")
     await init_db()
-    print(f"Database initialized at: {settings.DATABASE_PATH}")
+    logger.info(f"Database initialized at: {settings.DATABASE_PATH}")
     yield
     # Shutdown
-    print("Shutting down NovelMind Backend...")
+    logger.info("Shutting down NovelMind Backend...")
 
 
 app = FastAPI(

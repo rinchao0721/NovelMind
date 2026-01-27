@@ -15,6 +15,10 @@ from llm.providers import (
     QwenProvider,
     ZhipuProvider,
     BaiduProvider,
+    AIHubMixProvider,
+    SiliconFlowProvider,
+    OpenRouterProvider,
+    OllamaProvider,
 )
 from config import settings
 
@@ -55,6 +59,26 @@ class LLMService:
         "baidu": {
             "models": ["ernie-4.0-8k", "ernie-3.5-8k", "ernie-speed"],
             "default": "ernie-4.0-8k",
+        },
+        "aihubmix": {
+            "models": ["gpt-4o", "claude-3-5-sonnet-20241022", "gemini-1.5-pro-latest"],
+            "default": "gpt-4o",
+        },
+        "siliconflow": {
+            "models": [
+                "deepseek-ai/DeepSeek-V3",
+                "deepseek-ai/DeepSeek-R1",
+                "Qwen/Qwen2.5-72B-Instruct",
+            ],
+            "default": "deepseek-ai/DeepSeek-V3",
+        },
+        "openrouter": {
+            "models": ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-pro-1.5"],
+            "default": "openai/gpt-4o",
+        },
+        "ollama": {
+            "models": ["llama3", "mistral", "qwen2"],
+            "default": "llama3",
         },
     }
 
@@ -100,8 +124,21 @@ class LLMService:
                 "model": settings.CUSTOM_MODEL_NAME or "gpt-4o",
                 "base_url": settings.CUSTOM_BASE_URL or "https://api.openai.com/v1",
             },
+            # New Providers - Configs will be loaded dynamically from settings_service primarily
+            # These are defaults if ENV vars were used, but we rely on settings_service for new ones mostly
+            "aihubmix": {},
+            "siliconflow": {},
+            "openrouter": {},
+            "ollama": {},
         }
-        return configs.get(provider, configs["openai"])
+
+        # Merge with dynamically loaded settings if available via config.settings
+        # Note: settings.py currently only has env vars.
+        # The SettingsService loads from JSON.
+        # This method is primarily used when initializing from ENV or default config.
+        # When called from UI context, we often pass specific config.
+
+        return configs.get(provider, {})
 
     def _create_client(
         self, provider: Optional[str] = None, config: Optional[Dict[str, Any]] = None
@@ -122,12 +159,51 @@ class LLMService:
             )
         else:
             # Use settings config
+            # We need to fetch from SettingsService because env vars are not enough for new providers
+            # However, this class is synchronous in init but providers are async safe.
+            # We will rely on the caller to provide config or rely on what's available.
+            # For CLI/Backend usage without frontend config, we might need to load from SettingsService.
+
+            # Since this is a refactor, let's keep it simple:
+            # If we are in the context of an API request, we should probably load from settings service.
+            # But LLMService is often instantiated per request.
+
+            from services.settings_service import get_settings_service
+            import asyncio
+
+            # This is a bit tricky as load_settings is async.
+            # For now, we will assume this method is called with config when possible,
+            # or we rely on the limited env vars for old providers.
+            # For new providers, we should really pass config.
+
             cfg = self._get_provider_config(provider_name)
             return create_provider(provider_name, cfg)
 
     async def complete(self, prompt: str, provider: Optional[str] = None, **kwargs: Any) -> str:
         """Generate completion"""
-        client = self._create_client(provider)
+        # If no config provided, we need to load it.
+        # But _create_client is sync.
+        # We should load settings here if needed.
+
+        provider_name = provider or self.provider
+        config = None
+
+        # Load full settings to get keys for new providers
+        from services.settings_service import get_settings_service
+
+        settings_service = get_settings_service()
+        all_settings = await settings_service.load_settings()
+
+        if provider_name in all_settings:
+            p_settings = all_settings[provider_name]
+            config = {
+                "api_key": p_settings.get("apiKey", ""),
+                "model": p_settings.get("model", ""),
+                "base_url": p_settings.get("baseUrl", ""),
+                "secret_key": p_settings.get("secretKey", ""),
+            }
+
+        client = self._create_client(provider_name, config)
         return await client.complete(prompt, **kwargs)
 
     async def chat(
@@ -137,7 +213,25 @@ class LLMService:
         **kwargs: Any,
     ) -> str:
         """Generate chat completion"""
-        client = self._create_client(provider)
+        provider_name = provider or self.provider
+        config = None
+
+        # Load full settings to get keys for new providers
+        from services.settings_service import get_settings_service
+
+        settings_service = get_settings_service()
+        all_settings = await settings_service.load_settings()
+
+        if provider_name in all_settings:
+            p_settings = all_settings[provider_name]
+            config = {
+                "api_key": p_settings.get("apiKey", ""),
+                "model": p_settings.get("model", ""),
+                "base_url": p_settings.get("baseUrl", ""),
+                "secret_key": p_settings.get("secretKey", ""),
+            }
+
+        client = self._create_client(provider_name, config)
         return await client.chat(messages, **kwargs)
 
     async def test_connection(

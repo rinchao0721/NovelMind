@@ -7,6 +7,9 @@ from typing import Dict, Any, List, Optional
 import asyncio
 import json
 import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BaseLLMProvider(ABC):
@@ -32,7 +35,10 @@ class BaseLLMProvider(ABC):
         try:
             response = await self.complete("Say 'OK' in one word.")
             return bool(response and len(response) > 0)
-        except Exception:
+        except Exception as e:
+            logger.error(
+                f"Connection test failed for {self.__class__.__name__}: {str(e)}", exc_info=True
+            )
             return False
 
 
@@ -67,6 +73,82 @@ class OpenAIProvider(BaseLLMProvider):
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+
+
+class AIHubMixProvider(OpenAIProvider):
+    """AIHubMix Provider (OpenAI Compatible)"""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o",
+        base_url: str = "https://aihubmix.com/v1",
+        **kwargs,
+    ):
+        # Auto-fix URL if /v1 is missing but domain is correct
+        if "aihubmix.com" in base_url and not base_url.endswith("/v1"):
+            base_url = f"{base_url.rstrip('/')}/v1"
+        super().__init__(api_key, model, base_url, **kwargs)
+
+
+class SiliconFlowProvider(OpenAIProvider):
+    """SiliconFlow (SiliconCloud) Provider"""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "deepseek-ai/DeepSeek-V3",
+        base_url: str = "https://api.siliconflow.cn/v1",
+        **kwargs,
+    ):
+        super().__init__(api_key, model, base_url, **kwargs)
+
+
+class OpenRouterProvider(OpenAIProvider):
+    """OpenRouter Provider"""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "openai/gpt-4o",
+        base_url: str = "https://openrouter.ai/api/v1",
+        **kwargs,
+    ):
+        super().__init__(api_key, model, base_url, **kwargs)
+
+
+class OllamaProvider(OpenAIProvider):
+    """Ollama Local Provider"""
+
+    def __init__(
+        self,
+        api_key: str = "ollama",
+        model: str = "llama3",
+        base_url: str = "http://localhost:11434/v1",
+        **kwargs,
+    ):
+        super().__init__(api_key, model, base_url, **kwargs)
+
+
+class DeepSeekProvider(OpenAIProvider):
+    """DeepSeek API provider (OpenAI compatible)"""
+
+    def __init__(self, api_key: str, model: str = "deepseek-chat", **kwargs):
+        super().__init__(
+            api_key=api_key, model=model, base_url="https://api.deepseek.com/v1", **kwargs
+        )
+
+
+class QwenProvider(OpenAIProvider):
+    """Alibaba Qwen API provider (OpenAI compatible)"""
+
+    def __init__(self, api_key: str, model: str = "qwen-plus", **kwargs):
+        super().__init__(
+            api_key=api_key,
+            model=model,
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            **kwargs,
+        )
 
 
 class ClaudeProvider(BaseLLMProvider):
@@ -142,27 +224,6 @@ class GeminiProvider(BaseLLMProvider):
             response.raise_for_status()
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
-
-
-class DeepSeekProvider(OpenAIProvider):
-    """DeepSeek API provider (OpenAI compatible)"""
-
-    def __init__(self, api_key: str, model: str = "deepseek-chat", **kwargs):
-        super().__init__(
-            api_key=api_key, model=model, base_url="https://api.deepseek.com/v1", **kwargs
-        )
-
-
-class QwenProvider(OpenAIProvider):
-    """Alibaba Qwen API provider (OpenAI compatible)"""
-
-    def __init__(self, api_key: str, model: str = "qwen-plus", **kwargs):
-        super().__init__(
-            api_key=api_key,
-            model=model,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            **kwargs,
-        )
 
 
 class ZhipuProvider(BaseLLMProvider):
@@ -258,7 +319,11 @@ def create_provider(provider_name: str, config: Dict[str, Any]) -> BaseLLMProvid
         "qwen": QwenProvider,
         "zhipu": ZhipuProvider,
         "baidu": BaiduProvider,
-        "custom": OpenAIProvider,  # Custom uses OpenAI-compatible format
+        "custom": OpenAIProvider,
+        "aihubmix": AIHubMixProvider,
+        "siliconflow": SiliconFlowProvider,
+        "openrouter": OpenRouterProvider,
+        "ollama": OllamaProvider,
     }
 
     provider_class = providers.get(provider_name.lower())

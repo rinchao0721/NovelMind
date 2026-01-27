@@ -65,6 +65,18 @@ export const settingsApi = {
   async testNeo4j(config: { uri: string; user: string; password: string }) {
     const response = await api.post('/api/settings/test-neo4j', config)
     return response.data
+  },
+
+  // Get application logs
+  async getLogs(lines: number = 500) {
+    const response = await api.get('/api/settings/logs', { params: { lines } })
+    return response.data
+  },
+
+  // Clear application logs
+  async clearLogs() {
+    const response = await api.delete('/api/settings/logs')
+    return response.data
   }
 }
 

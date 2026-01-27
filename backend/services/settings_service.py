@@ -74,6 +74,10 @@ class SecureSettingsService:
             "baidu",
             "custom",
             "neo4j",
+            "aihubmix",
+            "siliconflow",
+            "openrouter",
+            "ollama",
         ]
 
         for key, value in data.items():
