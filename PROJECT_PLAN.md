@@ -450,4 +450,5 @@ uv run pytest              # 运行测试
 
 **创建时间**: 2026-01-27  
 **版本**: 1.0.0  
-**作者**: NovelMind Team
+**作者**: rinchao
+
