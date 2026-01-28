@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 from database.sqlite_db import get_db
 from database.neo4j_db import Neo4jDB
 from services.llm_service import LLMService
+from utils.logger import logger
 
 
 class AnalysisEngine:
@@ -19,6 +20,8 @@ class AnalysisEngine:
 
     async def analyze(self, novel_id: str, task_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run full analysis on a novel"""
+        logger.info(f"Starting analysis for novel {novel_id} (Task: {task_id})")
+        logger.debug(f"Analysis config: {config}")
 
         features = config.get("features", ["characters", "relationships", "plot", "summary"])
         depth = config.get("depth", "standard")
@@ -29,7 +32,10 @@ class AnalysisEngine:
         chapters = await self._get_chapters(novel_id, config)
 
         if not chapters:
+            logger.error(f"No chapters found for novel {novel_id}")
             raise ValueError("No chapters found for analysis")
+
+        logger.info(f"Loaded {len(chapters)} chapters for analysis")
 
         # Initialize result
         result = {
@@ -50,6 +56,7 @@ class AnalysisEngine:
         # Step 1: Character extraction
         if "characters" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "识别人物...")
+            logger.info("Step 1: Extracting characters")
             result["characters"] = await self._extract_characters(
                 novel_id, chapters, depth, provider, model
             )
@@ -58,6 +65,7 @@ class AnalysisEngine:
         # Step 2: Relationship analysis
         if "relationships" in features and result["characters"]:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "分析关系...")
+            logger.info("Step 2: Analyzing relationships")
             result["relationships"] = await self._analyze_relationships(
                 novel_id, result["characters"], chapters, depth, provider, model
             )
@@ -66,17 +74,20 @@ class AnalysisEngine:
         # Step 3: Plot tracking
         if "plot" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "追踪情节...")
+            logger.info("Step 3: Tracking plots")
             result["plots"] = await self._track_plots(novel_id, chapters, depth, provider, model)
             current_step += 1
 
         # Step 4: Summary generation
         if "summary" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "生成摘要...")
+            logger.info("Step 4: Generating summaries")
             result["chapter_summaries"] = await self._generate_summaries(
                 novel_id, chapters, depth, provider, model
             )
             current_step += 1
 
+        logger.info(f"Analysis completed for task {task_id}")
         return result
 
     async def _get_chapters(self, novel_id: str, config: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -182,10 +193,11 @@ class AnalysisEngine:
                     )
                 await db.commit()
 
+            logger.info(f"Saved {len(all_characters)} characters to database")
             return list(all_characters.values())
 
         except Exception as e:
-            print(f"Character extraction error: {e}")
+            logger.error(f"Character extraction error: {e}")
             return []
 
     async def _analyze_relationships(
@@ -248,13 +260,14 @@ class AnalysisEngine:
                                 "first_chapter": rel_data["first_chapter"],
                             },
                         )
-                    except Exception:
-                        pass  # Neo4j might not be available
+                    except Exception as e:
+                        logger.warning(f"Neo4j save failed (non-critical): {e}")
 
+            logger.info(f"Processed {len(result)} relationships")
             return result
 
         except Exception as e:
-            print(f"Relationship analysis error: {e}")
+            logger.error(f"Relationship analysis error: {e}")
             return []
 
     async def _track_plots(
@@ -268,6 +281,7 @@ class AnalysisEngine:
         """Track plot developments (placeholder)"""
         # This would involve more complex analysis
         # For now, return empty list
+        logger.warning("Plot tracking not fully implemented yet")
         return []
 
     async def _generate_summaries(
@@ -283,6 +297,8 @@ class AnalysisEngine:
 
         # Limit number of summaries based on depth
         max_chapters = {"quick": 5, "standard": 20, "deep": len(chapters)}[depth]
+
+        logger.info(f"Generating summaries for {len(chapters[:max_chapters])} chapters")
 
         for chapter in chapters[:max_chapters]:
             try:
@@ -306,7 +322,7 @@ class AnalysisEngine:
                 )
 
             except Exception as e:
-                print(f"Summary generation error for chapter {chapter['chapter_num']}: {e}")
+                logger.error(f"Summary generation error for chapter {chapter['chapter_num']}: {e}")
 
         return summaries
 

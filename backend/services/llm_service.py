@@ -3,6 +3,7 @@ LLM Service - Unified interface for multiple LLM providers
 """
 
 import json
+import time
 from typing import Dict, Any, Optional, List
 
 from llm.providers import (
@@ -10,6 +11,7 @@ from llm.providers import (
     create_provider,
 )
 from config import settings
+from utils.logger import logger
 
 
 class LLMService:
@@ -137,10 +139,19 @@ class LLMService:
 
         if config:
             # Use provided config (from frontend settings)
+            api_key = config.get("apiKey") or config.get("api_key", "")
+            # Mask key for logging
+            masked_key = (
+                api_key[:4] + "***" + api_key[-4:] if api_key and len(api_key) > 8 else "***"
+            )
+            logger.info(
+                f"Initializing {provider_name} provider with model: {config.get('model')} (Key: {masked_key})"
+            )
+
             return create_provider(
                 provider_name,
                 {
-                    "api_key": config.get("apiKey") or config.get("api_key", ""),
+                    "api_key": api_key,
                     "model": config.get("model", "gpt-4o"),
                     "base_url": config.get("baseUrl") or config.get("base_url"),
                     "secret_key": config.get("secretKey") or config.get("secret_key"),
@@ -148,20 +159,7 @@ class LLMService:
             )
         else:
             # Use settings config
-            # We need to fetch from SettingsService because env vars are not enough for new providers
-            # However, this class is synchronous in init but providers are async safe.
-            # We will rely on the caller to provide config or rely on what's available.
-            # For CLI/Backend usage without frontend config, we might need to load from SettingsService.
-
-            # Since this is a refactor, let's keep it simple:
-            # If we are in the context of an API request, we should probably load from settings service.
-            # But LLMService is often instantiated per request.
-
-            # This is a bit tricky as load_settings is async.
-            # For now, we will assume this method is called with config when possible,
-            # or we rely on the limited env vars for old providers.
-            # For new providers, we should really pass config.
-
+            logger.info(f"Initializing {provider_name} provider from default settings")
             cfg = self._get_provider_config(provider_name)
             return create_provider(provider_name, cfg)
 
@@ -173,10 +171,6 @@ class LLMService:
         **kwargs: Any,
     ) -> str:
         """Generate completion"""
-        # If no config provided, we need to load it.
-        # But _create_client is sync.
-        # We should load settings here if needed.
-
         provider_name = provider or self.provider
         config = None
 
@@ -199,15 +193,29 @@ class LLMService:
         if model and config:
             config["model"] = model
         elif model and not config:
-            # Fallback if config not found (e.g. env vars only), though unlikely with new structure
-            # We might want to construct a minimal config if we can get API key from env
+            # Fallback if config not found (e.g. env vars only)
             base_config = self._get_provider_config(provider_name)
             if base_config:
                 config = base_config
                 config["model"] = model
 
         client = self._create_client(provider_name, config)
-        return await client.complete(prompt, **kwargs)
+
+        # Log request
+        logger.info(
+            f"LLM Request [Complete] | Provider: {provider_name} | Model: {config.get('model') if config else 'default'}"
+        )
+        logger.debug(f"Prompt: {prompt[:100]}...")
+
+        start_time = time.time()
+        try:
+            response = await client.complete(prompt, **kwargs)
+            duration = time.time() - start_time
+            logger.info(f"LLM Response | Duration: {duration:.2f}s | Length: {len(response)} chars")
+            return response
+        except Exception as e:
+            logger.error(f"LLM Error [Complete] | Provider: {provider_name} | Error: {str(e)}")
+            raise
 
     async def chat(
         self,
@@ -245,7 +253,21 @@ class LLMService:
                 config["model"] = model
 
         client = self._create_client(provider_name, config)
-        return await client.chat(messages, **kwargs)
+
+        # Log request
+        logger.info(
+            f"LLM Request [Chat] | Provider: {provider_name} | Model: {config.get('model') if config else 'default'}"
+        )
+
+        start_time = time.time()
+        try:
+            response = await client.chat(messages, **kwargs)
+            duration = time.time() - start_time
+            logger.info(f"LLM Response | Duration: {duration:.2f}s | Length: {len(response)} chars")
+            return response
+        except Exception as e:
+            logger.error(f"LLM Error [Chat] | Provider: {provider_name} | Error: {str(e)}")
+            raise
 
     async def test_connection(
         self, provider: Optional[str] = None, config: Optional[Dict[str, Any]] = None
@@ -253,14 +275,22 @@ class LLMService:
         """Test connection to the LLM provider"""
         try:
             client = self._create_client(provider, config)
+            if config and (config.get("baseUrl") or config.get("base_url")):
+                logger.info(
+                    f"Testing connection to {provider} at {config.get('baseUrl') or config.get('base_url')}"
+                )
+
             return await client.test_connection()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Connection test failed for {provider}: {e}")
+            logger.exception("Full traceback:")  # Log full traceback
             return False
 
     async def analyze_characters(
         self, text: str, provider: Optional[str] = None, model: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Use LLM to extract characters from text"""
+        logger.info("Starting character extraction...")
         # Limit text to avoid token limits
         text_sample = text[:8000]
 
@@ -289,8 +319,11 @@ class LLMService:
             start = response.find("[")
             end = response.rfind("]") + 1
             if start >= 0 and end > start:
-                return json.loads(response[start:end])
-        except json.JSONDecodeError:
+                data = json.loads(response[start:end])
+                logger.info(f"Extracted {len(data)} characters")
+                return data
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse character JSON: {e}")
             pass
 
         return []
@@ -303,6 +336,7 @@ class LLMService:
         model: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Use LLM to analyze relationships between characters"""
+        logger.info(f"Starting relationship analysis for {len(characters)} characters...")
         char_names = [c.get("name", "") for c in characters if c.get("name")]
         text_sample = text[:8000]
 
@@ -329,8 +363,11 @@ class LLMService:
             start = response.find("[")
             end = response.rfind("]") + 1
             if start >= 0 and end > start:
-                return json.loads(response[start:end])
-        except json.JSONDecodeError:
+                data = json.loads(response[start:end])
+                logger.info(f"Extracted {len(data)} relationships")
+                return data
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse relationship JSON: {e}")
             pass
 
         return []
@@ -339,6 +376,7 @@ class LLMService:
         self, text: str, provider: Optional[str] = None, model: Optional[str] = None
     ) -> str:
         """Generate summary for text"""
+        logger.info("Generating summary...")
         text_sample = text[:6000]
 
         prompt = f"""请为以下小说章节生成一个简洁的摘要（100-200字）：
@@ -353,6 +391,7 @@ class LLMService:
         self, text: str, provider: Optional[str] = None, model: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Extract key plot events from text"""
+        logger.info("Starting plot analysis...")
         text_sample = text[:8000]
 
         prompt = f"""请分析以下小说文本，提取关键剧情事件。
@@ -377,8 +416,11 @@ class LLMService:
             start = response.find("[")
             end = response.rfind("]") + 1
             if start >= 0 and end > start:
-                return json.loads(response[start:end])
-        except json.JSONDecodeError:
+                data = json.loads(response[start:end])
+                logger.info(f"Extracted {len(data)} plot events")
+                return data
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse plot JSON: {e}")
             pass
 
         return []

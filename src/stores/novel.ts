@@ -21,30 +21,7 @@ export const useNovelStore = defineStore('novel', () => {
     } catch (error) {
       console.error('Failed to fetch novels:', error)
       // 返回模拟数据用于开发
-      novels.value = [
-        {
-          id: '1',
-          title: '红楼梦',
-          author: '曹雪芹',
-          file_path: '/novels/hongloumeng.txt',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          analysis_status: 'completed',
-          total_chapters: 120,
-          total_words: 731017
-        },
-        {
-          id: '2',
-          title: '三国演义',
-          author: '罗贯中',
-          file_path: '/novels/sanguoyanyi.txt',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          analysis_status: 'pending',
-          total_chapters: 120,
-          total_words: 600000
-        }
-      ]
+      novels.value = []
       return novels.value
     } finally {
       loading.value = false
@@ -61,18 +38,13 @@ export const useNovelStore = defineStore('novel', () => {
     } catch (error) {
       console.error('Failed to fetch novel:', error)
       // 返回模拟数据
-      currentNovel.value = novels.value.find(n => n.id === id) || {
-        id,
-        title: '红楼梦',
-        author: '曹雪芹',
-        file_path: '/novels/hongloumeng.txt',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        analysis_status: 'completed',
-        total_chapters: 120,
-        total_words: 731017
+      const found = novels.value.find(n => n.id === id)
+      if (found) {
+        currentNovel.value = found
+      } else {
+        throw error
       }
-      return currentNovel.value
+      return currentNovel.value!
     } finally {
       loading.value = false
     }
@@ -128,28 +100,7 @@ export const useNovelStore = defineStore('novel', () => {
     } catch (error) {
       console.error('Failed to fetch characters:', error)
       // 返回模拟数据
-      characters.value = [
-        {
-          id: '1',
-          novel_id: novelId,
-          name: '贾宝玉',
-          aliases: ['宝二爷', '怡红公子'],
-          description: '贾府荣国公贾代善之孙、荣国府贾政之子。',
-          personality: '性格叛逆，多情善感。',
-          first_appearance: 1,
-          importance_score: 1.0
-        },
-        {
-          id: '2',
-          novel_id: novelId,
-          name: '林黛玉',
-          aliases: ['林妹妹', '潇湘妃子'],
-          description: '林如海与贾敏之女，贾母外孙女。',
-          personality: '聪慧多才，敏感多疑。',
-          first_appearance: 2,
-          importance_score: 0.9
-        }
-      ]
+      characters.value = []
       return characters.value
     }
   }
@@ -163,20 +114,7 @@ export const useNovelStore = defineStore('novel', () => {
     } catch (error) {
       console.error('Failed to fetch relationships:', error)
       // 返回模拟数据
-      relationships.value = [
-        {
-          id: '1',
-          source_id: '1',
-          target_id: '2',
-          source_name: '贾宝玉',
-          target_name: '林黛玉',
-          type: 'lover',
-          subtype: '知己情人',
-          strength: 1.0,
-          first_chapter: 3,
-          description: '贾宝玉与林黛玉青梅竹马，互为知己。'
-        }
-      ]
+      relationships.value = []
       return relationships.value
     }
   }
@@ -191,20 +129,8 @@ export const useNovelStore = defineStore('novel', () => {
       console.error('Failed to fetch graph data:', error)
       // 返回模拟数据
       graphData.value = {
-        nodes: [
-          { id: '1', name: '贾宝玉', importance: 1.0, category: 0 },
-          { id: '2', name: '林黛玉', importance: 0.9, category: 1 },
-          { id: '3', name: '薛宝钗', importance: 0.85, category: 1 },
-          { id: '4', name: '王熙凤', importance: 0.8, category: 0 },
-          { id: '5', name: '贾母', importance: 0.75, category: 0 }
-        ],
-        links: [
-          { source: '1', target: '2', type: 'lover', value: 10 },
-          { source: '1', target: '3', type: 'friend', value: 8 },
-          { source: '1', target: '5', type: 'family', value: 7 },
-          { source: '2', target: '3', type: 'friend', value: 5 },
-          { source: '4', target: '5', type: 'family', value: 6 }
-        ]
+        nodes: [],
+        links: []
       }
       return graphData.value
     }

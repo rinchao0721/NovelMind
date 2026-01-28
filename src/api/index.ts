@@ -22,15 +22,21 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
+    // Log successful requests (optional: filter by method to reduce noise)
+    if (response.config.method !== 'get') {
+      console.log(`[API] Success: ${response.config.method?.toUpperCase()} ${response.config.url}`, response.data)
+    }
     return response
   },
   (error) => {
     // 统一错误处理
     if (error.response) {
       const { status, data } = error.response
-      console.error(`API Error ${status}:`, data)
+      console.error(`[API] Error ${status}:`, data)
     } else if (error.request) {
-      console.error('Network Error:', error.message)
+      console.error('[API] Network Error:', error.message)
+    } else {
+      console.error('[API] Request Setup Error:', error.message)
     }
     return Promise.reject(error)
   }

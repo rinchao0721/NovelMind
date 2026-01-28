@@ -115,12 +115,13 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import type { UploadFile } from 'element-plus'
+import type { UploadFile, UploadInstance } from 'element-plus'
 import { useNovelStore } from '@/stores/novel'
 
 const router = useRouter()
 const novelStore = useNovelStore()
 
+const uploadRef = ref<UploadInstance>()
 const recentNovels = ref<any[]>([])
 const importDialogVisible = ref(false)
 const selectedFile = ref<File | null>(null)

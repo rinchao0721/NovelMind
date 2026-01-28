@@ -1,7 +1,13 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { spawn, ChildProcess } from 'child_process'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
+import log from 'electron-log/main'
+
+// Initialize logger
+log.initialize()
+log.info('App starting...')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -38,6 +44,7 @@ function createWindow() {
   // 窗口准备好后显示
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+    log.info('Main window shown')
   })
 
   // 开发环境加载本地服务器，生产环境加载打包文件
@@ -56,6 +63,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    log.info('Main window closed')
   })
 }
 
@@ -63,7 +71,7 @@ function createWindow() {
 function startBackend() {
   if (process.env.VITE_DEV_SERVER_URL) {
     // 开发环境：后端由 npm script 单独启动
-    console.log('Development mode: Backend should be started separately')
+    log.info('Development mode: Backend should be started separately')
     return
   }
 
@@ -72,6 +80,8 @@ function startBackend() {
     : path.join(__dirname, '../backend')
 
   const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3'
+
+  log.info(`Starting backend from: ${backendPath}`)
 
   backendProcess = spawn(pythonExecutable, ['main.py'], {
     cwd: backendPath,
@@ -83,15 +93,19 @@ function startBackend() {
   })
 
   backendProcess.stdout?.on('data', (data) => {
-    console.log(`Backend: ${data}`)
+    const msg = data.toString().trim()
+    console.log(`Backend: ${msg}`)
+    log.info(`[Backend] ${msg}`)
   })
 
   backendProcess.stderr?.on('data', (data) => {
-    console.error(`Backend Error: ${data}`)
+    const msg = data.toString().trim()
+    console.error(`Backend Error: ${msg}`)
+    log.error(`[Backend Error] ${msg}`)
   })
 
   backendProcess.on('close', (code) => {
-    console.log(`Backend process exited with code ${code}`)
+    log.info(`Backend process exited with code ${code}`)
     backendProcess = null
   })
 }
@@ -99,6 +113,7 @@ function startBackend() {
 // 停止后端
 function stopBackend() {
   if (backendProcess) {
+    log.info('Stopping backend process...')
     backendProcess.kill()
     backendProcess = null
   }
@@ -108,6 +123,7 @@ function stopBackend() {
 function setupIpcHandlers() {
   // 打开文件选择对话框
   ipcMain.handle('dialog:openFile', async (_, options) => {
+    log.info('IPC: dialog:openFile')
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile'],
       filters: options?.filters || [
@@ -120,6 +136,7 @@ function setupIpcHandlers() {
 
   // 打开文件夹选择对话框
   ipcMain.handle('dialog:openDirectory', async () => {
+    log.info('IPC: dialog:openDirectory')
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openDirectory']
     })
@@ -128,6 +145,7 @@ function setupIpcHandlers() {
 
   // 保存文件对话框
   ipcMain.handle('dialog:saveFile', async (_, options) => {
+    log.info('IPC: dialog:saveFile')
     const result = await dialog.showSaveDialog(mainWindow!, {
       filters: options?.filters || [
         { name: 'JSON', extensions: ['json'] },
@@ -145,6 +163,29 @@ function setupIpcHandlers() {
   // 获取应用版本
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()
+  })
+
+  // 打开日志文件夹 (Enhanced)
+  ipcMain.handle('log:openFolder', () => {
+    const mainLogPath = log.transports.file.getFile().path
+    const logDir = path.dirname(mainLogPath)
+    
+    // Try to copy backend logs to this folder if they are elsewhere (e.g. dev mode)
+    if (process.env.VITE_DEV_SERVER_URL) {
+      const backendLogPath = path.join(__dirname, '../backend/data/app.log')
+      if (fs.existsSync(backendLogPath)) {
+        try {
+          const dest = path.join(logDir, 'backend-dev.log')
+          fs.copyFileSync(backendLogPath, dest)
+          log.info(`Copied backend log to ${dest}`)
+        } catch (e) {
+          log.error(`Failed to copy backend log: ${e}`)
+        }
+      }
+    }
+
+    shell.showItemInFolder(mainLogPath)
+    return mainLogPath
   })
 
   // 最小化窗口

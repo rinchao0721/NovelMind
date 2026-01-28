@@ -372,6 +372,9 @@
               </el-select>
             </div>
             <div class="right">
+              <el-button type="default" plain @click="exportLogs" style="margin-right: 12px">
+                <el-icon><FolderOpened /></el-icon> 导出日志
+              </el-button>
               <el-button type="danger" plain @click="clearLogs">
                 <el-icon><Delete /></el-icon> 清空日志
               </el-button>
@@ -431,7 +434,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Link, Document, ChatDotRound, Refresh, Delete } from '@element-plus/icons-vue'
+import { Link, Document, ChatDotRound, Refresh, Delete, FolderOpened } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api'
 import { PROVIDERS } from '@/config/providers'
 import ProviderAvatar from '@/components/ProviderAvatar.vue'
@@ -601,6 +604,20 @@ const refreshLogs = async () => {
     if (!autoRefresh.value) ElMessage.error('获取日志失败')
   } finally {
     loadingLogs.value = false
+  }
+}
+
+const exportLogs = async () => {
+  try {
+    if (window.electronAPI?.openLogFolder) {
+      const path = await window.electronAPI.openLogFolder()
+      ElMessage.success(`已打开日志文件夹: ${path}`)
+    } else {
+      ElMessage.warning('此功能仅在桌面版可用')
+    }
+  } catch (error) {
+    console.error('Failed to export logs:', error)
+    ElMessage.error('无法打开日志文件夹')
   }
 }
 

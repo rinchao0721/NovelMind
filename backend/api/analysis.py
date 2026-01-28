@@ -200,12 +200,14 @@ async def get_analysis_result(task_id: str):
         char_cursor = await db.execute(
             "SELECT COUNT(*) FROM characters WHERE novel_id = ?", (novel_id,)
         )
-        character_count = (await char_cursor.fetchone())[0]
+        char_row = await char_cursor.fetchone()
+        character_count = char_row[0] if char_row else 0
 
         chapter_cursor = await db.execute(
             "SELECT COUNT(*) FROM chapters WHERE novel_id = ?", (novel_id,)
         )
-        chapter_count = (await chapter_cursor.fetchone())[0]
+        chapter_row = await chapter_cursor.fetchone()
+        chapter_count = chapter_row[0] if chapter_row else 0
 
         # For relationships, we'd query Neo4j in production
         relationship_count = 0
