@@ -137,7 +137,7 @@ export const useNovelStore = defineStore('novel', () => {
   }
 
   // 开始分析
-  const startAnalysis = async (novelId: string, options?: { depth?: string; provider?: string }) => {
+  const startAnalysis = async (novelId: string, options?: { depth?: string; provider?: string; model?: string }) => {
     try {
       const result = await analysisApi.startAnalysis(novelId, options)
       // 更新小说状态
