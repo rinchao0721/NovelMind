@@ -25,26 +25,6 @@ class CharacterResponse(BaseModel):
     importance_score: float
 
 
-class RelationshipResponse(BaseModel):
-    """Relationship response model"""
-
-    id: str
-    source_id: str
-    target_id: str
-    source_name: str
-    target_name: str
-    type: str
-    strength: float
-    description: Optional[str]
-
-
-class GraphDataResponse(BaseModel):
-    """Graph data response model"""
-
-    nodes: List[dict]
-    links: List[dict]
-
-
 @router.get("", response_model=List[CharacterResponse])
 async def get_characters(
     novel_id: Optional[str] = None,
@@ -126,42 +106,3 @@ async def get_character(character_id: str):
             first_appearance=row[6] or 1,
             importance_score=row[7] or 0.5,
         )
-
-
-@router.get("/graph/{novel_id}", response_model=GraphDataResponse)
-async def get_graph_data(novel_id: str):
-    """Get character relationship graph data for visualization"""
-    async with get_db() as db:
-        # Get characters as nodes
-        cursor = await db.execute(
-            """
-            SELECT id, name, importance_score
-            FROM characters
-            WHERE novel_id = ?
-            """,
-            (novel_id,),
-        )
-        rows = await cursor.fetchall()
-
-        nodes = [
-            {
-                "id": row[0],
-                "name": row[1],
-                "importance": row[2] or 0.5,
-                "category": 0,  # Would be determined by character type
-            }
-            for row in rows
-        ]
-
-        # In production, links would come from Neo4j
-        links = []
-
-        return GraphDataResponse(nodes=nodes, links=links)
-
-
-@router.get("/relationships", response_model=List[RelationshipResponse])
-async def get_relationships(novel_id: Optional[str] = None, character_id: Optional[str] = None):
-    """Get character relationships (from Neo4j in production)"""
-    # This would query Neo4j in production
-    # For now, return empty list
-    return []
