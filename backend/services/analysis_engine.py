@@ -193,7 +193,37 @@ class AnalysisEngine:
                     )
                 await db.commit()
 
-            logger.info(f"Saved {len(all_characters)} characters to database")
+            logger.info(f"Saved {len(all_characters)} characters to SQLite database")
+
+            # Save characters to Neo4j
+            try:
+                await self.neo4j.connect()
+                logger.info("Connected to Neo4j, creating character nodes...")
+
+                for char in all_characters.values():
+                    try:
+                        await self.neo4j.create_character(
+                            {
+                                "id": char["id"],
+                                "name": char["name"],
+                                "novel_id": char["novel_id"],
+                                "importance": char["importance_score"],
+                                "description": char["description"],
+                            }
+                        )
+                        logger.debug(f"Created Neo4j node for character: {char['name']}")
+                    except Exception as char_error:
+                        logger.error(
+                            f"Failed to create Neo4j node for character {char['name']}: {char_error}",
+                            exc_info=True,
+                        )
+
+                logger.info(f"Successfully created {len(all_characters)} character nodes in Neo4j")
+            except ImportError:
+                logger.warning("Neo4j driver not installed, skipping graph database operations")
+            except Exception as neo_error:
+                logger.error(f"Neo4j character creation failed: {neo_error}", exc_info=True)
+
             return list(all_characters.values())
 
         except Exception as e:
@@ -248,20 +278,71 @@ class AnalysisEngine:
                     }
                     result.append(rel_data)
 
-                    # Save to Neo4j if available
-                    try:
-                        await self.neo4j.create_relationship(
-                            source_id,
-                            target_id,
-                            rel_data["type"],
-                            {
-                                "strength": rel_data["strength"],
-                                "description": rel_data["description"],
-                                "first_chapter": rel_data["first_chapter"],
-                            },
+            # Save relationships to SQLite
+            if result:
+                async with get_db() as db:
+                    for rel in result:
+                        await db.execute(
+                            """
+                            INSERT INTO relationships (id, novel_id, source_id, target_id, type, 
+                                                      subtype, description, strength, first_chapter)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                rel["id"],
+                                novel_id,
+                                rel["source_id"],
+                                rel["target_id"],
+                                rel["type"],
+                                rel.get("subtype"),
+                                rel["description"],
+                                rel["strength"],
+                                rel["first_chapter"],
+                            ),
                         )
-                    except Exception as e:
-                        logger.warning(f"Neo4j save failed (non-critical): {e}")
+                    await db.commit()
+                logger.info(f"Saved {len(result)} relationships to SQLite database")
+
+            # Save relationships to Neo4j (connection should already be established from character creation)
+            if result:
+                try:
+                    # Ensure connection is active
+                    if not self.neo4j._driver:
+                        await self.neo4j.connect()
+                        logger.info("Re-established Neo4j connection for relationships")
+
+                    success_count = 0
+                    for rel in result:
+                        try:
+                            await self.neo4j.create_relationship(
+                                rel["source_id"],
+                                rel["target_id"],
+                                rel["type"],
+                                {
+                                    "strength": rel["strength"],
+                                    "description": rel["description"],
+                                    "first_chapter": rel["first_chapter"],
+                                },
+                            )
+                            success_count += 1
+                            logger.debug(
+                                f"Created Neo4j relationship: {rel['source_name']} -> {rel['target_name']} ({rel['type']})"
+                            )
+                        except Exception as rel_error:
+                            logger.error(
+                                f"Failed to create Neo4j relationship {rel['source_name']} -> {rel['target_name']}: {rel_error}",
+                                exc_info=True,
+                            )
+
+                    logger.info(
+                        f"Successfully created {success_count}/{len(result)} relationships in Neo4j"
+                    )
+                except ImportError:
+                    logger.warning(
+                        "Neo4j driver not installed, skipping graph database relationship creation"
+                    )
+                except Exception as neo_error:
+                    logger.error(f"Neo4j relationship creation failed: {neo_error}", exc_info=True)
 
             logger.info(f"Processed {len(result)} relationships")
             return result
