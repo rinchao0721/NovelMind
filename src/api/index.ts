@@ -121,7 +121,10 @@ export const novelsApi = {
 export const analysisApi = {
   // Start novel analysis
   async startAnalysis(novelId: string, options?: { depth?: string; provider?: string }) {
-    const response = await api.post(`/api/analysis/${novelId}/start`, options)
+    const response = await api.post('/api/analysis/start', {
+      novel_id: novelId,
+      ...options
+    })
     return response.data
   },
 

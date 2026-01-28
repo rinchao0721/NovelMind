@@ -60,6 +60,42 @@
             />
           </el-form-item>
 
+          <el-form-item label="分析模型">
+            <div class="model-selection">
+              <el-select v-model="analysisConfig.provider" placeholder="选择服务商" style="width: 150px">
+                <el-option
+                  v-for="provider in PROVIDERS"
+                  :key="provider.id"
+                  :label="provider.name"
+                  :value="provider.id"
+                >
+                  <div class="provider-option">
+                    <ProviderAvatar :provider-id="provider.id" :size="20" style="margin-right: 8px" />
+                    <span>{{ provider.name }}</span>
+                  </div>
+                </el-option>
+                <template #prefix v-if="analysisConfig.provider">
+                  <ProviderAvatar :provider-id="analysisConfig.provider" :size="20" />
+                </template>
+              </el-select>
+              <el-select 
+                v-model="analysisConfig.model" 
+                placeholder="选择或输入模型" 
+                allow-create 
+                filterable 
+                default-first-option
+                style="flex: 1"
+              >
+                <el-option
+                  v-for="model in availableModels"
+                  :key="model"
+                  :label="model"
+                  :value="model"
+                />
+              </el-select>
+            </div>
+          </el-form-item>
+
           <el-form-item label="分析深度">
             <el-select v-model="analysisConfig.depth" style="width: 200px">
               <el-option label="快速分析 (节省API调用)" value="quick" />
@@ -204,13 +240,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { VideoPlay, Share, User, Timer, Download, SuccessFilled, Loading, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
-import { exportApi } from '@/api'
+import { exportApi, settingsApi } from '@/api'
 import type { Novel } from '@/types'
+import { PROVIDERS } from '@/config/providers'
+import ProviderAvatar from '@/components/ProviderAvatar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -239,7 +277,28 @@ const analysisConfig = ref({
   scope: 'full',
   chapterRange: [1, 100],
   depth: 'standard',
-  features: ['characters', 'relationships', 'plot', 'summary']
+  features: ['characters', 'relationships', 'plot', 'summary'],
+  provider: '',
+  model: ''
+})
+
+const availableModels = computed(() => {
+  const provider = PROVIDERS.find(p => p.id === analysisConfig.value.provider)
+  return provider ? provider.defaultModels : []
+})
+
+watch(() => analysisConfig.value.provider, (newVal) => {
+  const provider = PROVIDERS.find(p => p.id === newVal)
+  if (provider && provider.defaultModels.length > 0) {
+    // If current model is not valid for new provider, select the first default
+    // Or if custom provider, we might want to keep the input or clear it.
+    // For simplicity, reset to first default if available.
+    if (provider.id === 'custom') {
+       // Custom provider might not have default models listed, keep existing or clear
+    } else if (!analysisConfig.value.model || !provider.defaultModels.includes(analysisConfig.value.model)) {
+      analysisConfig.value.model = provider.defaultModels[0]
+    }
+  }
 })
 
 const chapterMarks = computed(() => {
@@ -286,7 +345,9 @@ const startAnalysis = async () => {
 
     // 调用后端开始分析
     const result = await novelStore.startAnalysis(selectedNovelId.value, {
-      depth: analysisConfig.value.depth
+      depth: analysisConfig.value.depth,
+      provider: analysisConfig.value.provider,
+      model: analysisConfig.value.model
     })
 
     if (result.taskId) {
@@ -475,6 +536,20 @@ onMounted(async () => {
     selectedNovelId.value = id
     await handleNovelChange(id)
   }
+
+  // Load default provider settings
+  try {
+    const settings = await settingsApi.loadSettings()
+    if (settings.defaultProvider) {
+      analysisConfig.value.provider = settings.defaultProvider
+      // Try to get saved model for this provider
+      if (settings[settings.defaultProvider]?.model) {
+        analysisConfig.value.model = settings[settings.defaultProvider].model
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+  }
 })
 
 onUnmounted(() => {
@@ -507,6 +582,17 @@ onUnmounted(() => {
   .novel-info {
     margin-top: 16px;
   }
+}
+
+.model-selection {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.provider-option {
+  display: flex;
+  align-items: center;
 }
 
 .analysis-progress {

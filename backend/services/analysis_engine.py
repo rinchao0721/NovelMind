@@ -22,6 +22,8 @@ class AnalysisEngine:
 
         features = config.get("features", ["characters", "relationships", "plot", "summary"])
         depth = config.get("depth", "standard")
+        provider = config.get("provider")
+        model = config.get("model")
 
         # Get novel chapters
         chapters = await self._get_chapters(novel_id, config)
@@ -48,27 +50,31 @@ class AnalysisEngine:
         # Step 1: Character extraction
         if "characters" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "识别人物...")
-            result["characters"] = await self._extract_characters(novel_id, chapters, depth)
+            result["characters"] = await self._extract_characters(
+                novel_id, chapters, depth, provider, model
+            )
             current_step += 1
 
         # Step 2: Relationship analysis
         if "relationships" in features and result["characters"]:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "分析关系...")
             result["relationships"] = await self._analyze_relationships(
-                novel_id, result["characters"], chapters, depth
+                novel_id, result["characters"], chapters, depth, provider, model
             )
             current_step += 1
 
         # Step 3: Plot tracking
         if "plot" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "追踪情节...")
-            result["plots"] = await self._track_plots(novel_id, chapters, depth)
+            result["plots"] = await self._track_plots(novel_id, chapters, depth, provider, model)
             current_step += 1
 
         # Step 4: Summary generation
         if "summary" in features:
             await self._update_progress(task_id, (current_step / total_steps) * 100, "生成摘要...")
-            result["chapter_summaries"] = await self._generate_summaries(novel_id, chapters, depth)
+            result["chapter_summaries"] = await self._generate_summaries(
+                novel_id, chapters, depth, provider, model
+            )
             current_step += 1
 
         return result
@@ -112,7 +118,12 @@ class AnalysisEngine:
             ]
 
     async def _extract_characters(
-        self, novel_id: str, chapters: List[Dict], depth: str
+        self,
+        novel_id: str,
+        chapters: List[Dict],
+        depth: str,
+        provider: str = None,
+        model: str = None,
     ) -> List[Dict]:
         """Extract characters from novel"""
         all_characters = {}
@@ -127,7 +138,9 @@ class AnalysisEngine:
         )
 
         try:
-            characters = await self.llm.analyze_characters(combined_text)
+            characters = await self.llm.analyze_characters(
+                combined_text, provider=provider, model=model
+            )
 
             for char in characters:
                 name = char.get("name", "").strip()
@@ -176,7 +189,13 @@ class AnalysisEngine:
             return []
 
     async def _analyze_relationships(
-        self, novel_id: str, characters: List[Dict], chapters: List[Dict], depth: str
+        self,
+        novel_id: str,
+        characters: List[Dict],
+        chapters: List[Dict],
+        depth: str,
+        provider: str = None,
+        model: str = None,
     ) -> List[Dict]:
         """Analyze relationships between characters"""
         sample_size = {"quick": 3, "standard": 10, "deep": len(chapters)}[depth]
@@ -187,7 +206,9 @@ class AnalysisEngine:
         )
 
         try:
-            relationships = await self.llm.analyze_relationships(characters, combined_text)
+            relationships = await self.llm.analyze_relationships(
+                characters, combined_text, provider=provider, model=model
+            )
 
             # Create name to ID mapping
             name_to_id = {c["name"]: c["id"] for c in characters}
@@ -236,14 +257,26 @@ class AnalysisEngine:
             print(f"Relationship analysis error: {e}")
             return []
 
-    async def _track_plots(self, novel_id: str, chapters: List[Dict], depth: str) -> List[Dict]:
+    async def _track_plots(
+        self,
+        novel_id: str,
+        chapters: List[Dict],
+        depth: str,
+        provider: str = None,
+        model: str = None,
+    ) -> List[Dict]:
         """Track plot developments (placeholder)"""
         # This would involve more complex analysis
         # For now, return empty list
         return []
 
     async def _generate_summaries(
-        self, novel_id: str, chapters: List[Dict], depth: str
+        self,
+        novel_id: str,
+        chapters: List[Dict],
+        depth: str,
+        provider: str = None,
+        model: str = None,
     ) -> List[Dict]:
         """Generate chapter summaries"""
         summaries = []
@@ -253,7 +286,9 @@ class AnalysisEngine:
 
         for chapter in chapters[:max_chapters]:
             try:
-                summary = await self.llm.generate_summary(chapter["content"])
+                summary = await self.llm.generate_summary(
+                    chapter["content"], provider=provider, model=model
+                )
 
                 # Update chapter in database
                 async with get_db() as db:

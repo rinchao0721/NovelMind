@@ -24,6 +24,8 @@ class AnalysisConfig(BaseModel):
     chapter_end: Optional[int] = None
     depth: str = "standard"  # quick, standard, deep
     features: list = ["characters", "relationships", "plot", "summary"]
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 
 class AnalysisStatusResponse(BaseModel):
@@ -204,6 +206,60 @@ async def get_analysis_result(task_id: str):
             "SELECT COUNT(*) FROM chapters WHERE novel_id = ?", (novel_id,)
         )
         chapter_count = (await chapter_cursor.fetchone())[0]
+
+        # For relationships, we'd query Neo4j in production
+        relationship_count = 0
+        plot_count = 0
+
+        return AnalysisResultResponse(
+            task_id=task_id,
+            novel_id=novel_id,
+            character_count=character_count,
+            relationship_count=relationship_count,
+            plot_count=plot_count,
+            chapter_count=chapter_count,
+        )
+
+
+@router.get("/{novel_id}/results", response_model=AnalysisResultResponse)
+async def get_novel_analysis_results(novel_id: str):
+    """Get analysis results for a novel (latest completed task)"""
+    async with get_db() as db:
+        # Check if novel exists
+        cursor = await db.execute(
+            "SELECT id, analysis_status FROM novels WHERE id = ?", (novel_id,)
+        )
+        row = await cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Novel not found")
+
+        novel_id, status = row
+
+        # Find latest completed task for this novel to get a task_id
+        task_cursor = await db.execute(
+            """
+            SELECT id FROM analysis_tasks 
+            WHERE novel_id = ? AND status = 'completed' 
+            ORDER BY completed_at DESC LIMIT 1
+            """,
+            (novel_id,),
+        )
+        task_row = await task_cursor.fetchone()
+        task_id = task_row[0] if task_row else "unknown"
+
+        # Get counts
+        char_cursor = await db.execute(
+            "SELECT COUNT(*) FROM characters WHERE novel_id = ?", (novel_id,)
+        )
+        char_row = await char_cursor.fetchone()
+        character_count = char_row[0] if char_row else 0
+
+        chapter_cursor = await db.execute(
+            "SELECT COUNT(*) FROM chapters WHERE novel_id = ?", (novel_id,)
+        )
+        chapter_row = await chapter_cursor.fetchone()
+        chapter_count = chapter_row[0] if chapter_row else 0
 
         # For relationships, we'd query Neo4j in production
         relationship_count = 0

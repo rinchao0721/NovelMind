@@ -27,12 +27,12 @@
             <el-icon><User /></el-icon>
             <span>人物列表</span>
           </router-link>
-        </nav>
-        <div class="nav-footer">
           <router-link to="/settings" class="nav-item" active-class="active">
             <el-icon><Setting /></el-icon>
             <span>设置</span>
           </router-link>
+        </nav>
+        <div class="nav-footer">
           <button class="theme-toggle" @click="toggleDark">
             <el-icon><Moon v-if="!isDark" /><Sunny v-else /></el-icon>
           </button>

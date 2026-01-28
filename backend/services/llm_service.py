@@ -165,7 +165,13 @@ class LLMService:
             cfg = self._get_provider_config(provider_name)
             return create_provider(provider_name, cfg)
 
-    async def complete(self, prompt: str, provider: Optional[str] = None, **kwargs: Any) -> str:
+    async def complete(
+        self,
+        prompt: str,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        **kwargs: Any,
+    ) -> str:
         """Generate completion"""
         # If no config provided, we need to load it.
         # But _create_client is sync.
@@ -189,6 +195,17 @@ class LLMService:
                 "secret_key": p_settings.get("secretKey", ""),
             }
 
+        # Override model if provided
+        if model and config:
+            config["model"] = model
+        elif model and not config:
+            # Fallback if config not found (e.g. env vars only), though unlikely with new structure
+            # We might want to construct a minimal config if we can get API key from env
+            base_config = self._get_provider_config(provider_name)
+            if base_config:
+                config = base_config
+                config["model"] = model
+
         client = self._create_client(provider_name, config)
         return await client.complete(prompt, **kwargs)
 
@@ -196,6 +213,7 @@ class LLMService:
         self,
         messages: List[Dict[str, str]],
         provider: Optional[str] = None,
+        model: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
         """Generate chat completion"""
@@ -217,6 +235,15 @@ class LLMService:
                 "secret_key": p_settings.get("secretKey", ""),
             }
 
+        # Override model if provided
+        if model and config:
+            config["model"] = model
+        elif model and not config:
+            base_config = self._get_provider_config(provider_name)
+            if base_config:
+                config = base_config
+                config["model"] = model
+
         client = self._create_client(provider_name, config)
         return await client.chat(messages, **kwargs)
 
@@ -231,7 +258,7 @@ class LLMService:
             return False
 
     async def analyze_characters(
-        self, text: str, provider: Optional[str] = None
+        self, text: str, provider: Optional[str] = None, model: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Use LLM to extract characters from text"""
         # Limit text to avoid token limits
@@ -254,7 +281,7 @@ class LLMService:
 [{{"name": "...", "aliases": [...], "description": "...", "personality": "...", "importance": 0.8}}]
 """
 
-        response = await self.complete(prompt, provider)
+        response = await self.complete(prompt, provider, model)
 
         # Parse JSON response
         try:
@@ -273,6 +300,7 @@ class LLMService:
         characters: List[Dict[str, Any]],
         text: str,
         provider: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Use LLM to analyze relationships between characters"""
         char_names = [c.get("name", "") for c in characters if c.get("name")]
@@ -295,7 +323,7 @@ class LLMService:
 [{{"source": "人物A", "target": "人物B", "type": "family", "subtype": "父子", "strength": 0.9, "description": "..."}}]
 """
 
-        response = await self.complete(prompt, provider)
+        response = await self.complete(prompt, provider, model)
 
         try:
             start = response.find("[")
@@ -307,7 +335,9 @@ class LLMService:
 
         return []
 
-    async def generate_summary(self, text: str, provider: Optional[str] = None) -> str:
+    async def generate_summary(
+        self, text: str, provider: Optional[str] = None, model: Optional[str] = None
+    ) -> str:
         """Generate summary for text"""
         text_sample = text[:6000]
 
@@ -317,10 +347,10 @@ class LLMService:
 
 摘要："""
 
-        return await self.complete(prompt, provider)
+        return await self.complete(prompt, provider, model)
 
     async def analyze_plot_events(
-        self, text: str, provider: Optional[str] = None
+        self, text: str, provider: Optional[str] = None, model: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Extract key plot events from text"""
         text_sample = text[:8000]
@@ -341,7 +371,7 @@ class LLMService:
 [{{"title": "...", "description": "...", "characters": [...], "type": "conflict", "importance": 0.8}}]
 """
 
-        response = await self.complete(prompt, provider)
+        response = await self.complete(prompt, provider, model)
 
         try:
             start = response.find("[")
