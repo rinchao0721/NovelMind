@@ -55,7 +55,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import * as echarts from 'echarts'
 import { useNovelStore } from '@/stores/novel'
 
@@ -67,33 +67,8 @@ const novels = ref<any[]>([])
 const selectedNovelId = ref('')
 const viewMode = ref('plot')
 
-// 模拟数据
-const chapters = ref([
-  {
-    id: '1',
-    chapter_num: 1,
-    title: '贾雨村夤缘复旧职',
-    word_count: 8500,
-    summary: '甄士隐梦幻识通灵，贾雨村风尘怀闺秀。开篇交代了通灵宝玉的来历，以及贾雨村与甄士隐的故事。',
-    characters: ['贾雨村', '甄士隐', '甄英莲']
-  },
-  {
-    id: '2',
-    chapter_num: 2,
-    title: '贾夫人仙逝扬州城',
-    word_count: 7200,
-    summary: '林黛玉丧母后被贾母接入贾府，初次见到贾宝玉，两人一见如故。',
-    characters: ['林黛玉', '贾母', '贾宝玉', '王熙凤']
-  },
-  {
-    id: '3',
-    chapter_num: 3,
-    title: '托内兄如海酬训教',
-    word_count: 9100,
-    summary: '黛玉进贾府，见到了贾府众人。宝玉见黛玉，觉得面善，似曾相识。',
-    characters: ['林黛玉', '贾宝玉', '贾母', '王夫人', '薛宝钗']
-  }
-])
+// 使用 store 中的章节数据
+const chapters = computed(() => novelStore.chapters)
 
 const initChart = () => {
   if (!timelineChartRef.value) return
@@ -144,9 +119,21 @@ const handleResize = () => {
   chart?.resize()
 }
 
+// 监听小说选择变化
+watch(selectedNovelId, async (newId) => {
+  if (newId) {
+    await novelStore.fetchChapters(newId)
+    initChart()
+  }
+})
+
+// 监听章节数据变化（例如重新分析后）
+watch(chapters, () => {
+  initChart()
+}, { deep: true })
+
 onMounted(async () => {
   novels.value = await novelStore.fetchNovels()
-  initChart()
   window.addEventListener('resize', handleResize)
 })
 

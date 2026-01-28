@@ -6,6 +6,7 @@ import type { Novel, Character, Relationship, GraphData } from '@/types'
 export const useNovelStore = defineStore('novel', () => {
   const novels = ref<Novel[]>([])
   const currentNovel = ref<Novel | null>(null)
+  const chapters = ref<any[]>([])
   const characters = ref<Character[]>([])
   const relationships = ref<Relationship[]>([])
   const graphData = ref<GraphData | null>(null)
@@ -88,6 +89,19 @@ export const useNovelStore = defineStore('novel', () => {
     } catch (error) {
       console.error('Failed to delete novel:', error)
       throw error
+    }
+  }
+
+  // 获取章节列表
+  const fetchChapters = async (novelId: string) => {
+    try {
+      const data = await novelsApi.getChapters(novelId)
+      chapters.value = data
+      return chapters.value
+    } catch (error) {
+      console.error('Failed to fetch chapters:', error)
+      chapters.value = []
+      return chapters.value
     }
   }
 
@@ -175,12 +189,14 @@ export const useNovelStore = defineStore('novel', () => {
   return {
     novels,
     currentNovel,
+    chapters,
     characters,
     relationships,
     graphData,
     loading,
     fetchNovels,
     fetchNovel,
+    fetchChapters,
     importNovel,
     deleteNovel,
     fetchCharacters,

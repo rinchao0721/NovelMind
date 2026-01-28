@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNovelStore } from '@/stores/novel'
 
@@ -85,57 +85,8 @@ const selectedNovelId = ref('')
 const searchQuery = ref('')
 const sortBy = ref('importance')
 
-// 模拟数据
-const characters = ref([
-  {
-    id: '1',
-    name: '贾宝玉',
-    aliases: ['宝二爷', '怡红公子'],
-    description: '贾府荣国公贾代善之孙，荣国府贾政之子，因衔玉而诞。',
-    first_appearance: 1,
-    importance_score: 1.0
-  },
-  {
-    id: '2',
-    name: '林黛玉',
-    aliases: ['林妹妹', '潇湘妃子'],
-    description: '林如海与贾敏之女，贾母的外孙女，宝玉的表妹。',
-    first_appearance: 2,
-    importance_score: 0.9
-  },
-  {
-    id: '3',
-    name: '薛宝钗',
-    aliases: ['宝姐姐', '蘅芜君'],
-    description: '薛姨妈之女，王夫人的外甥女，金陵十二钗之首。',
-    first_appearance: 3,
-    importance_score: 0.85
-  },
-  {
-    id: '4',
-    name: '王熙凤',
-    aliases: ['凤姐', '凤辣子'],
-    description: '贾琏之妻，王夫人的内侄女，贾府的实际管家人。',
-    first_appearance: 2,
-    importance_score: 0.8
-  },
-  {
-    id: '5',
-    name: '贾母',
-    aliases: ['老太太', '史太君'],
-    description: '贾府辈分最高的长辈，宝玉的祖母。',
-    first_appearance: 2,
-    importance_score: 0.75
-  },
-  {
-    id: '6',
-    name: '史湘云',
-    aliases: ['云妹妹', '枕霞旧友'],
-    description: '史家大小姐，贾母的侄孙女，性格豪爽开朗。',
-    first_appearance: 5,
-    importance_score: 0.6
-  }
-])
+// 使用 store 中的人物数据
+const characters = computed(() => novelStore.characters)
 
 const filteredCharacters = computed(() => {
   let result = [...characters.value]
@@ -163,6 +114,13 @@ const filteredCharacters = computed(() => {
   }
 
   return result
+})
+
+// 监听小说选择变化
+watch(selectedNovelId, async (newId) => {
+  if (newId) {
+    await novelStore.fetchCharacters(newId)
+  }
 })
 
 onMounted(async () => {
