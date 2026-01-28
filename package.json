@@ -12,7 +12,7 @@
     "dev:electron": "vite",
     "dev:backend": "cd backend && uv run python main.py",
     "dev:all": "concurrently \"npm run dev:electron\" \"npm run dev:backend\"",
-    "build:backend": "cd backend && uv run pyinstaller novelmind.spec --noconfirm --clean",
+    "build:backend": "cd backend && .venv\\Scripts\\python.exe -m PyInstaller novelmind.spec --noconfirm --clean",
     "build": "npm run build:backend && vue-tsc --noEmit && vite build",
     "build:electron": "npm run build && electron-builder",
     "build:win": "npm run build && electron-builder --win",
