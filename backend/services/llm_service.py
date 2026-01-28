@@ -8,17 +8,6 @@ from typing import Dict, Any, Optional, List
 from llm.providers import (
     BaseLLMProvider,
     create_provider,
-    OpenAIProvider,
-    ClaudeProvider,
-    GeminiProvider,
-    DeepSeekProvider,
-    QwenProvider,
-    ZhipuProvider,
-    BaiduProvider,
-    AIHubMixProvider,
-    SiliconFlowProvider,
-    OpenRouterProvider,
-    OllamaProvider,
 )
 from config import settings
 
@@ -167,9 +156,6 @@ class LLMService:
             # Since this is a refactor, let's keep it simple:
             # If we are in the context of an API request, we should probably load from settings service.
             # But LLMService is often instantiated per request.
-
-            from services.settings_service import get_settings_service
-            import asyncio
 
             # This is a bit tricky as load_settings is async.
             # For now, we will assume this method is called with config when possible,

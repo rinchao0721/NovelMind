@@ -1,6 +1,7 @@
 """
 Character data models
 """
+
 from typing import Optional, List
 
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 
 class CharacterBase(BaseModel):
     """Base character model"""
+
     name: str
     aliases: List[str] = []
     description: Optional[str] = None
@@ -16,6 +18,7 @@ class CharacterBase(BaseModel):
 
 class CharacterCreate(CharacterBase):
     """Character creation model"""
+
     novel_id: str
     first_appearance: int = 1
     importance_score: float = 0.5
@@ -23,17 +26,19 @@ class CharacterCreate(CharacterBase):
 
 class Character(CharacterBase):
     """Full character model"""
+
     id: str
     novel_id: str
     first_appearance: int = 1
     importance_score: float = 0.5
-    
+
     class Config:
         from_attributes = True
 
 
 class CharacterResponse(BaseModel):
     """Character API response model"""
+
     id: str
     novel_id: str
     name: str

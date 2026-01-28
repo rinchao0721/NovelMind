@@ -1,6 +1,7 @@
 """
 SQLite database operations
 """
+
 import aiosqlite
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -77,14 +78,14 @@ CREATE INDEX IF NOT EXISTS idx_analysis_tasks_novel_id ON analysis_tasks(novel_i
 async def init_db():
     """Initialize the database with schema"""
     db_path = settings.DATABASE_PATH
-    
+
     # Ensure parent directory exists
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     async with aiosqlite.connect(db_path) as db:
         # Enable foreign keys
         await db.execute("PRAGMA foreign_keys = ON")
-        
+
         # Create tables
         await db.executescript(SCHEMA)
         await db.commit()
@@ -104,10 +105,10 @@ async def get_db():
 
 class SQLiteDB:
     """SQLite database helper class"""
-    
+
     def __init__(self, db_path: Path = None):
         self.db_path = db_path or settings.DATABASE_PATH
-    
+
     async def execute(self, query: str, params: tuple = None):
         """Execute a query"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -118,7 +119,7 @@ class SQLiteDB:
                 cursor = await db.execute(query)
             await db.commit()
             return cursor
-    
+
     async def fetch_one(self, query: str, params: tuple = None):
         """Fetch a single row"""
         async with aiosqlite.connect(self.db_path) as db:
@@ -127,7 +128,7 @@ class SQLiteDB:
             else:
                 cursor = await db.execute(query)
             return await cursor.fetchone()
-    
+
     async def fetch_all(self, query: str, params: tuple = None):
         """Fetch all rows"""
         async with aiosqlite.connect(self.db_path) as db:

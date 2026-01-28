@@ -4,7 +4,6 @@ Configures application-wide logging to file and console
 """
 
 import logging
-import os
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path

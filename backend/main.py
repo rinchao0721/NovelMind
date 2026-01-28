@@ -3,7 +3,6 @@ NovelMind Backend - FastAPI Application Entry Point
 """
 
 import os
-import sys
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -15,7 +14,6 @@ from api import novels, analysis, characters, settings as settings_api, export
 from database.sqlite_db import init_db
 
 
-import logging
 from utils.logger import setup_logger
 
 

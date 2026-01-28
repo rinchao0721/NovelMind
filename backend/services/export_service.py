@@ -5,7 +5,6 @@ Export Service - Export analysis results in various formats
 import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from pathlib import Path
 
 from database.sqlite_db import get_db
 

@@ -2,9 +2,8 @@
 Settings API endpoints
 """
 
-import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel

@@ -4,7 +4,6 @@ Secure settings service for API key management
 
 import json
 import base64
-from pathlib import Path
 from typing import Dict, Any, Optional
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
