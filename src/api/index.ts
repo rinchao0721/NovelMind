@@ -96,7 +96,7 @@ export const novelsApi = {
 
   // Upload novel file
   async upload(formData: FormData) {
-    const response = await api.post('/api/novels/upload', formData, {
+    const response = await api.post('/api/novels/import', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
