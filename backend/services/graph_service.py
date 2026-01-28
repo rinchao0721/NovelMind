@@ -1,5 +1,5 @@
 import networkx as nx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 from database.sqlite_db import get_db
 from utils.logger import logger
 
