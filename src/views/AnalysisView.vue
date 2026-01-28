@@ -87,7 +87,7 @@
                 style="flex: 1"
               >
                 <el-option
-                  v-for="model in availableModels"
+                  v-for="model in computedAvailableModels"
                   :key="model"
                   :label="model"
                   :value="model"
@@ -265,6 +265,30 @@ const {
   currentTaskId 
 } = storeToRefs(novelStore)
 
+// 辅助函数
+const formatNumber = (num: number | undefined) => {
+  return num ? num.toLocaleString() : '0'
+}
+
+const getStatusType = (status: string | undefined) => {
+  switch (status) {
+    case 'completed': return 'success'
+    case 'analyzing': return 'primary'
+    case 'failed': return 'danger'
+    default: return 'info'
+  }
+}
+
+const getStatusText = (status: string | undefined) => {
+  switch (status) {
+    case 'completed': return '已完成'
+    case 'analyzing': return '分析中'
+    case 'failed': return '失败'
+    case 'pending': return '待分析'
+    default: return '未知'
+  }
+}
+
 const novels = ref<Novel[]>([])
 const selectedNovelId = ref('')
 const currentNovel = ref<Novel | null>(null)
@@ -289,7 +313,7 @@ const analysisConfig = ref({
   model: ''
 })
 
-const availableModels = computed(() => {
+const computedAvailableModels = computed(() => {
   const provider = PROVIDERS.find(p => p.id === analysisConfig.value.provider)
   return provider ? provider.defaultModels : []
 })
@@ -518,280 +542,6 @@ onMounted(async () => {
 onUnmounted(() => {
   stopPolling()
   // 注意：不再清空 store 状态，以保持页面切换后的数据
-})
-
-const availableModels = computed(() => {
-  const provider = PROVIDERS.find(p => p.id === analysisConfig.value.provider)
-  return provider ? provider.defaultModels : []
-})
-
-watch(() => analysisConfig.value.provider, (newVal) => {
-  const provider = PROVIDERS.find(p => p.id === newVal)
-  if (provider && provider.defaultModels.length > 0) {
-    // If current model is not valid for new provider, select the first default
-    // Or if custom provider, we might want to keep the input or clear it.
-    // For simplicity, reset to first default if available.
-    if (provider.id === 'custom') {
-       // Custom provider might not have default models listed, keep existing or clear
-    } else if (!analysisConfig.value.model || !provider.defaultModels.includes(analysisConfig.value.model)) {
-      analysisConfig.value.model = provider.defaultModels[0]
-    }
-  }
-})
-
-const chapterMarks = computed(() => {
-  const max = currentNovel.value?.total_chapters || 100
-  return {
-    1: '第1章',
-    [max]: `第${max}章`
-  }
-})
-
-const handleNovelChange = async (id: string) => {
-  if (!id) return
-  try {
-    currentNovel.value = await novelStore.fetchNovel(id)
-    analysisConfig.value.chapterRange = [1, currentNovel.value.total_chapters]
-    
-    // 如果已分析完成，加载结果
-    if (currentNovel.value.analysis_status === 'completed') {
-      await loadAnalysisResult()
-    } else {
-      analysisResult.value = null
-    }
-  } catch (error) {
-    console.error('Failed to load novel:', error)
-  }
-}
-
-const addLog = (type: string, message: string) => {
-  const now = new Date()
-  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-  analysisLogs.value.push({ type, message, time })
-}
-
-const startAnalysis = async () => {
-  if (!selectedNovelId.value) return
-
-  analyzing.value = true
-  analysisProgress.value = 0
-  analysisLogs.value = []
-  analysisResult.value = null
-
-  try {
-    addLog('loading', '正在初始化分析任务...')
-
-    // 调用后端开始分析
-    const result = await novelStore.startAnalysis(selectedNovelId.value, {
-      depth: analysisConfig.value.depth,
-      provider: analysisConfig.value.provider,
-      model: analysisConfig.value.model
-    })
-
-    if (result.taskId) {
-      currentTaskId.value = result.taskId
-      addLog('success', '分析任务已创建')
-      startPolling()
-    } else {
-      // 模拟分析进度（后端未实现时的备用方案）
-      await simulateAnalysis()
-    }
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '未知错误'
-    ElMessage.error('启动分析失败: ' + message)
-    addLog('error', '分析失败: ' + message)
-    analyzing.value = false
-  }
-}
-
-const simulateAnalysis = async () => {
-  const steps = [
-    { progress: 10, message: '正在加载小说内容...' },
-    { progress: 25, message: '正在识别人物信息...' },
-    { progress: 50, message: '正在分析人物关系...' },
-    { progress: 75, message: '正在追踪情节线索...' },
-    { progress: 90, message: '正在生成章节摘要...' },
-    { progress: 100, message: '分析完成!' }
-  ]
-
-  for (const step of steps) {
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    analysisProgress.value = step.progress
-    progressText.value = step.message
-    addLog(step.progress === 100 ? 'success' : 'loading', step.message)
-  }
-
-  // 模拟结果
-  analysisResult.value = {
-    characterCount: 28,
-    relationshipCount: 45,
-    plotCount: 12,
-    chapterCount: currentNovel.value?.total_chapters || 0
-  }
-
-  // 更新小说状态
-  if (currentNovel.value) {
-    currentNovel.value.analysis_status = 'completed'
-  }
-
-  ElMessage.success('分析完成')
-  analyzing.value = false
-}
-
-const startPolling = () => {
-  if (pollingInterval.value) {
-    clearInterval(pollingInterval.value)
-  }
-
-  pollingInterval.value = window.setInterval(async () => {
-    try {
-      const status = await novelStore.getAnalysisStatus(currentTaskId.value)
-      
-      analysisProgress.value = status.progress || 0
-      progressText.value = status.message || '分析中...'
-      
-      if (status.status === 'completed') {
-        stopPolling()
-        await loadAnalysisResult()
-        ElMessage.success('分析完成')
-        analyzing.value = false
-        addLog('success', '分析完成!')
-      } else if (status.status === 'failed') {
-        stopPolling()
-        ElMessage.error('分析失败: ' + (status.error || '未知错误'))
-        analyzing.value = false
-        addLog('error', '分析失败: ' + (status.error || '未知错误'))
-      }
-    } catch (error) {
-      console.error('Polling error:', error)
-    }
-  }, 2000)
-}
-
-const stopPolling = () => {
-  if (pollingInterval.value) {
-    clearInterval(pollingInterval.value)
-    pollingInterval.value = null
-  }
-}
-
-const cancelAnalysis = () => {
-  stopPolling()
-  analyzing.value = false
-  addLog('info', '分析已取消')
-}
-
-const loadAnalysisResult = async () => {
-  try {
-    const result = await novelStore.getAnalysisResults(selectedNovelId.value)
-    analysisResult.value = {
-      characterCount: result.character_count || 0,
-      relationshipCount: result.relationship_count || 0,
-      plotCount: result.plot_count || 0,
-      chapterCount: result.chapter_count || currentNovel.value?.total_chapters || 0
-    }
-  } catch (error) {
-    console.error('Failed to load analysis result:', error)
-    // 使用模拟数据
-    analysisResult.value = {
-      characterCount: 28,
-      relationshipCount: 45,
-      plotCount: 12,
-      chapterCount: currentNovel.value?.total_chapters || 0
-    }
-  }
-}
-
-const handleExport = () => {
-  exportDialogVisible.value = true
-}
-
-const confirmExport = async () => {
-  exporting.value = true
-  try {
-    let blob: Blob
-    let filename: string
-    
-    if (exportFormat.value === 'json') {
-      blob = await exportApi.exportJson(selectedNovelId.value)
-      filename = `${currentNovel.value?.title || 'novel'}_analysis.json`
-    } else {
-      blob = await exportApi.exportMarkdown(selectedNovelId.value)
-      filename = `${currentNovel.value?.title || 'novel'}_analysis.md`
-    }
-    
-    // 下载文件
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
-    
-    exportDialogVisible.value = false
-    ElMessage.success('导出成功')
-  } catch (error) {
-    console.error('Export failed:', error)
-    ElMessage.error('导出失败')
-  } finally {
-    exporting.value = false
-  }
-}
-
-const getStatusType = (status: string): 'success' | 'warning' | 'info' | 'primary' | 'danger' => {
-  const map: Record<string, 'success' | 'warning' | 'info' | 'primary' | 'danger'> = {
-    pending: 'info',
-    analyzing: 'warning',
-    completed: 'success',
-    failed: 'danger'
-  }
-  return map[status] || 'info'
-}
-
-const getStatusText = (status: string) => {
-  const map: Record<string, string> = {
-    pending: '待分析',
-    analyzing: '分析中',
-    completed: '已完成',
-    failed: '分析失败'
-  }
-  return map[status] || status
-}
-
-const formatNumber = (num: number) => {
-  if (num >= 10000) {
-    return (num / 10000).toFixed(1) + '万'
-  }
-  return num?.toString() || '0'
-}
-
-onMounted(async () => {
-  novels.value = await novelStore.fetchNovels()
-  
-  // 从 URL 参数获取小说 ID
-  const id = route.query.id as string
-  if (id) {
-    selectedNovelId.value = id
-    await handleNovelChange(id)
-  }
-
-  // Load default provider settings
-  try {
-    const settings = await settingsApi.loadSettings()
-    if (settings.defaultProvider) {
-      analysisConfig.value.provider = settings.defaultProvider
-      // Try to get saved model for this provider
-      if (settings[settings.defaultProvider]?.model) {
-        analysisConfig.value.model = settings[settings.defaultProvider].model
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load settings:', error)
-  }
-})
-
-onUnmounted(() => {
-  stopPolling()
 })
 </script>
 

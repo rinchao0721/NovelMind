@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, exec, ChildProcess } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -73,82 +73,123 @@ function startBackend() {
   let backendPath = ''
   let executable = ''
   let args: string[] = []
-
-  if (isDev) {
-    // 开发环境：后端由 npm script 单独启动 (已废弃，现在由 Electron 启动)
-    // log.info('Development mode: Backend should be started separately')
-    // return
-
-    // Dev mode: use uv run python from source
-    // __dirname in dev (vite-plugin-electron) usually maps to dist-electron or electron/
-    // We need to get to project root then backend
-    // Assuming structure: root/electron/main.ts -> root/dist-electron/main.js
-    backendPath = path.join(__dirname, '../backend')
-    
-    // Check if uv is available, otherwise fall back to python
-    // For simplicity in this environment where uv is known, we use uv
-    // Windows: uv.exe, Mac/Linux: uv
-    executable = process.platform === 'win32' ? 'uv.exe' : 'uv'
-    
-    // Use 'uv run python main.py' to run in the correct environment
-    args = ['run', 'python', 'main.py']
-    
-    log.info(`Development mode: Starting backend using ${executable} in ${backendPath}`)
-  } else {
-    // Production mode
-    backendPath = app.isPackaged
-      ? path.join(process.resourcesPath, 'backend')
-      : path.join(__dirname, '../backend')
-
-    executable = process.platform === 'win32' ? 'python' : 'python3'
-    args = ['main.py']
-    
-    log.info(`Production mode: Starting backend from: ${backendPath}`)
-  }
-
-  // Check if backend port is already in use (to avoid conflicts with concurrently)
-  // Simple check: if we fail to bind, the backend code handles it or we see error
-  // But here we just spawn.
-
-  backendProcess = spawn(executable, args, {
-    cwd: backendPath,
+  let spawnOptions: any = {
     env: {
       ...process.env,
       APP_PORT: String(BACKEND_PORT),
       PYTHONUNBUFFERED: '1' // Ensure output is flushed immediately
     },
     stdio: ['pipe', 'pipe', 'pipe']
-  })
+  }
 
-  backendProcess.stdout?.on('data', (data) => {
-    const msg = data.toString().trim()
-    console.log(`Backend: ${msg}`)
-    log.info(`[Backend] ${msg}`)
-  })
+  if (isDev) {
+    // Dev mode: use uv run python from source
+    backendPath = path.join(__dirname, '../backend')
+    
+    if (!fs.existsSync(backendPath)) {
+      console.error(`[Backend Error] Directory not found: ${backendPath}`)
+      log.error(`Backend directory not found: ${backendPath}`)
+      return
+    }
 
-  backendProcess.stderr?.on('data', (data) => {
-    const msg = data.toString().trim()
-    console.error(`Backend Error: ${msg}`)
-    // Ignore some common harmless warnings if needed
-    log.error(`[Backend Error] ${msg}`)
-  })
+    executable = process.platform === 'win32' ? 'uv.exe' : 'uv'
+    args = ['run', 'python', 'main.py']
+    
+    // Enable shell in dev on Windows to find uv in PATH
+    if (process.platform === 'win32') {
+      spawnOptions.shell = true
+    }
+    
+    console.log(`[Backend] Starting in DEV mode: ${executable} ${args.join(' ')}`)
+    console.log(`[Backend] CWD: ${backendPath}`)
+    log.info(`Development mode: Starting backend using ${executable} in ${backendPath}`)
+  } else {
+    // Production mode
+    const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, '../')
+    backendPath = path.join(resourcesPath, 'backend')
 
-  backendProcess.on('error', (err) => {
-    log.error(`Failed to start backend: ${err.message}`)
-    console.error(`Failed to start backend: ${err.message}`)
-  })
+    // Executable name based on OS (created by PyInstaller)
+    const exeName = process.platform === 'win32' ? 'novelmind.exe' : 'novelmind'
+    // Since we copy 'backend/dist/novelmind' contents to 'resources/backend', 
+    // the executable is directly inside backendPath
+    const bundledExe = path.join(backendPath, exeName)
 
-  backendProcess.on('close', (code) => {
-    log.info(`Backend process exited with code ${code}`)
-    backendProcess = null
-  })
+    if (fs.existsSync(bundledExe)) {
+      executable = bundledExe
+      args = []
+      log.info(`Production mode: Found bundled executable: ${executable}`)
+    } else {
+      // Fallback to python script (legacy)
+      log.warn('[Backend] Bundled executable not found, falling back to python script')
+      executable = process.platform === 'win32' ? 'python' : 'python3'
+      args = ['main.py']
+    }
+    
+    log.info(`Production mode: Starting backend from: ${backendPath}`)
+  }
+
+  spawnOptions.cwd = backendPath
+
+  try {
+    backendProcess = spawn(executable, args, spawnOptions)
+
+    backendProcess.stdout?.on('data', (data) => {
+      const msg = data.toString().trim()
+      console.log(`[Backend] ${msg}`) // Output to console for VSCode
+      log.info(`[Backend] ${msg}`)
+    })
+
+    backendProcess.stderr?.on('data', (data) => {
+      const msg = data.toString().trim()
+      console.error(`[Backend Error] ${msg}`) // Output to console for VSCode
+      log.error(`[Backend Error] ${msg}`)
+    })
+
+    backendProcess.on('error', (err) => {
+      const msg = `Failed to start backend: ${err.message}`
+      console.error(msg)
+      log.error(msg)
+      dialog.showErrorBox('Backend Error', msg)
+    })
+
+    backendProcess.on('close', (code) => {
+      const msg = `Backend process exited with code ${code}`
+      console.log(msg)
+      log.info(msg)
+      backendProcess = null
+    })
+  } catch (e: any) {
+    console.error(`Exception starting backend: ${e.message}`)
+    log.error(`Exception starting backend: ${e.message}`)
+  }
 }
 
 // 停止后端
 function stopBackend() {
   if (backendProcess) {
-    log.info('Stopping backend process...')
-    backendProcess.kill()
+    log.info(`Stopping backend process (PID: ${backendProcess.pid})...`)
+    
+    try {
+      if (process.platform === 'win32' && backendProcess.pid) {
+        // Windows: 使用 taskkill /T /F 强制杀死进程树
+        exec(`taskkill /pid ${backendProcess.pid} /T /F`, (err, _, stderr) => {
+          if (err) {
+            // 忽略 "没有找到进程" 的错误 (可能是已经退出了)
+            if (!stderr.includes('not found')) {
+              log.error(`Failed to kill backend tree: ${err.message}`)
+            }
+          } else {
+            log.info('Backend process tree stopped successfully')
+          }
+        })
+      } else {
+        // Unix: 发送 SIGTERM
+        backendProcess.kill()
+      }
+    } catch (e: any) {
+      log.error(`Error stopping backend: ${e.message}`)
+    }
+    
     backendProcess = null
   }
 }

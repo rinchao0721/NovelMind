@@ -49,6 +49,36 @@ CREATE TABLE IF NOT EXISTS characters (
     FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE
 );
 
+-- 关系表
+CREATE TABLE IF NOT EXISTS relationships (
+    id TEXT PRIMARY KEY,
+    novel_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    type TEXT,
+    subtype TEXT,
+    description TEXT,
+    strength REAL DEFAULT 0.5,
+    first_chapter INTEGER,
+    FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_id) REFERENCES characters(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_id) REFERENCES characters(id) ON DELETE CASCADE
+);
+
+-- 情节事件表
+CREATE TABLE IF NOT EXISTS plot_events (
+    id TEXT PRIMARY KEY,
+    novel_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    chapter_id TEXT,
+    event_type TEXT,
+    importance REAL DEFAULT 0.5,
+    event_order INTEGER,
+    FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE,
+    FOREIGN KEY (chapter_id) REFERENCES chapters(id) ON DELETE SET NULL
+);
+
 -- 设置表
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -71,6 +101,10 @@ CREATE TABLE IF NOT EXISTS analysis_tasks (
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_chapters_novel_id ON chapters(novel_id);
 CREATE INDEX IF NOT EXISTS idx_characters_novel_id ON characters(novel_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_novel_id ON relationships(novel_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_source_id ON relationships(source_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_target_id ON relationships(target_id);
+CREATE INDEX IF NOT EXISTS idx_plot_events_novel_id ON plot_events(novel_id);
 CREATE INDEX IF NOT EXISTS idx_analysis_tasks_novel_id ON analysis_tasks(novel_id);
 """
 

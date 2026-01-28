@@ -6,7 +6,8 @@ import uuid
 from typing import Dict, Any, List
 
 from database.sqlite_db import get_db
-from database.neo4j_db import Neo4jDB
+
+# from database.neo4j_db import Neo4jDB  <-- Removed
 from services.llm_service import LLMService
 from utils.logger import logger
 
@@ -16,7 +17,7 @@ class AnalysisEngine:
 
     def __init__(self):
         self.llm = LLMService()
-        self.neo4j = Neo4jDB()
+        # self.neo4j = Neo4jDB() <-- Removed
 
     async def analyze(self, novel_id: str, task_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run full analysis on a novel"""
@@ -195,35 +196,6 @@ class AnalysisEngine:
 
             logger.info(f"Saved {len(all_characters)} characters to SQLite database")
 
-            # Save characters to Neo4j
-            try:
-                await self.neo4j.connect()
-                logger.info("Connected to Neo4j, creating character nodes...")
-
-                for char in all_characters.values():
-                    try:
-                        await self.neo4j.create_character(
-                            {
-                                "id": char["id"],
-                                "name": char["name"],
-                                "novel_id": char["novel_id"],
-                                "importance": char["importance_score"],
-                                "description": char["description"],
-                            }
-                        )
-                        logger.debug(f"Created Neo4j node for character: {char['name']}")
-                    except Exception as char_error:
-                        logger.error(
-                            f"Failed to create Neo4j node for character {char['name']}: {char_error}",
-                            exc_info=True,
-                        )
-
-                logger.info(f"Successfully created {len(all_characters)} character nodes in Neo4j")
-            except ImportError:
-                logger.warning("Neo4j driver not installed, skipping graph database operations")
-            except Exception as neo_error:
-                logger.error(f"Neo4j character creation failed: {neo_error}", exc_info=True)
-
             return list(all_characters.values())
 
         except Exception as e:
@@ -302,47 +274,6 @@ class AnalysisEngine:
                         )
                     await db.commit()
                 logger.info(f"Saved {len(result)} relationships to SQLite database")
-
-            # Save relationships to Neo4j (connection should already be established from character creation)
-            if result:
-                try:
-                    # Ensure connection is active
-                    if not self.neo4j._driver:
-                        await self.neo4j.connect()
-                        logger.info("Re-established Neo4j connection for relationships")
-
-                    success_count = 0
-                    for rel in result:
-                        try:
-                            await self.neo4j.create_relationship(
-                                rel["source_id"],
-                                rel["target_id"],
-                                rel["type"],
-                                {
-                                    "strength": rel["strength"],
-                                    "description": rel["description"],
-                                    "first_chapter": rel["first_chapter"],
-                                },
-                            )
-                            success_count += 1
-                            logger.debug(
-                                f"Created Neo4j relationship: {rel['source_name']} -> {rel['target_name']} ({rel['type']})"
-                            )
-                        except Exception as rel_error:
-                            logger.error(
-                                f"Failed to create Neo4j relationship {rel['source_name']} -> {rel['target_name']}: {rel_error}",
-                                exc_info=True,
-                            )
-
-                    logger.info(
-                        f"Successfully created {success_count}/{len(result)} relationships in Neo4j"
-                    )
-                except ImportError:
-                    logger.warning(
-                        "Neo4j driver not installed, skipping graph database relationship creation"
-                    )
-                except Exception as neo_error:
-                    logger.error(f"Neo4j relationship creation failed: {neo_error}", exc_info=True)
 
             logger.info(f"Processed {len(result)} relationships")
             return result

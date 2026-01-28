@@ -26,11 +26,6 @@ class Settings(BaseSettings):
     DATA_DIR: Path = Path.home() / ".novelmind"
     DATABASE_PATH: Path = DATA_DIR / "novelmind.db"
 
-    # Neo4j settings
-    NEO4J_URI: str = "bolt://localhost:7687"
-    NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = ""
-
     # OpenAI settings
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"

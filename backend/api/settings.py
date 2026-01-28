@@ -22,14 +22,6 @@ class LLMTestRequest(BaseModel):
     config: Dict[str, Any]
 
 
-class Neo4jTestRequest(BaseModel):
-    """Neo4j connection test request"""
-
-    uri: str
-    user: str
-    password: str
-
-
 @router.get("")
 async def get_settings():
     """Get all settings"""
@@ -64,27 +56,6 @@ async def test_provider(request: LLMTestRequest):
         }
     except Exception as e:
         logging.error(f"Error testing provider {request.provider}: {str(e)}", exc_info=True)
-        return {"success": False, "error": str(e)}
-
-
-@router.post("/test-neo4j")
-async def test_neo4j(request: Neo4jTestRequest):
-    """Test Neo4j database connection"""
-    try:
-        from database.neo4j_db import Neo4jDB
-
-        neo4j = Neo4jDB(uri=request.uri, user=request.user, password=request.password)
-
-        success = await neo4j.test_connection()
-        await neo4j.close()
-
-        return {
-            "success": success,
-            "error": None if success else "Connection test failed",
-        }
-    except ImportError:
-        return {"success": False, "error": "Neo4j driver not installed"}
-    except Exception as e:
         return {"success": False, "error": str(e)}
 
 
