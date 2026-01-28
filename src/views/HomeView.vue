@@ -249,6 +249,46 @@ onMounted(() => {
   }
 }
 
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: var(--text-color-secondary);
+
+  .el-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: var(--text-color-placeholder);
+  }
+
+  h3 {
+    font-size: 18px;
+    color: var(--text-color);
+    margin: 0 0 8px;
+  }
+
+  p {
+    margin: 0 0 24px;
+  }
+
+  .el-button {
+    .el-icon {
+      font-size: 16px;
+      margin-bottom: 0;
+      margin-right: 6px;
+      color: inherit;
+      
+      svg {
+        width: 1em;
+        height: 1em;
+        vertical-align: middle;
+      }
+    }
+  }
+}
+
 .novel-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
