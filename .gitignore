@@ -61,10 +61,10 @@ tmp/
 temp/
 
 # Package manager lock files
-package-lock.json
+#package-lock.json
 yarn.lock
 pnpm-lock.yaml
-uv.lock
+#uv.lock
 
 # Python
 *.py[cod]
