@@ -4,7 +4,7 @@ Relationships API endpoints
 
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from database.sqlite_db import get_db
