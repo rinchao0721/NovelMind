@@ -226,7 +226,7 @@ export const useNovelStore = defineStore('novel', () => {
   }
 
   // 设置分析结果
-  const setAnalysisResult = (result: AnalysisResult) => {
+  const setAnalysisResult = (result: AnalysisResult | null) => {
     analysisResult.value = result
   }
 

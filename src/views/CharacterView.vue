@@ -10,7 +10,7 @@
       <el-input
         v-model="searchQuery"
         placeholder="搜索人物名称..."
-        prefix-icon="Search"
+        :prefix-icon="Search"
         clearable
         style="width: 300px"
       />

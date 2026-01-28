@@ -506,7 +506,50 @@ const loadAnalysisResult = async () => {
   }
 }
 
-// ... existing export and helper functions ...
+const handleExport = () => {
+  if (!analysisResult.value) {
+    ElMessage.warning('没有可导出的分析结果')
+    return
+  }
+  exportDialogVisible.value = true
+}
+
+const confirmExport = async () => {
+  if (!selectedNovelId.value) return
+  
+  exporting.value = true
+  try {
+    const format = exportFormat.value
+    let data: Blob
+    let extension: string
+    
+    if (format === 'json') {
+      data = await exportApi.exportJson(selectedNovelId.value)
+      extension = 'json'
+    } else {
+      data = await exportApi.exportMarkdown(selectedNovelId.value)
+      extension = 'md'
+    }
+    
+    // Create download link
+    const url = window.URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${currentNovel.value?.title || 'novel'}_analysis.${extension}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+    exportDialogVisible.value = false
+  } catch (error) {
+    console.error('Export failed:', error)
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 onMounted(async () => {
   novels.value = await novelStore.fetchNovels()
