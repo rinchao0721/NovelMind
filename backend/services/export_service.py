@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from database.sqlite_db import get_db
+from utils.logger import logger
 
 
 class ExportService:
@@ -14,100 +15,132 @@ class ExportService:
 
     async def get_novel_data(self, novel_id: str) -> Dict[str, Any]:
         """Get all data for a novel including characters and relationships"""
-        async with get_db() as db:
-            # Get novel info
-            cursor = await db.execute("SELECT * FROM novels WHERE id = ?", (novel_id,))
-            novel_row = await cursor.fetchone()
+        try:
+            async with get_db() as db:
+                # Get novel info
+                try:
+                    cursor = await db.execute("SELECT * FROM novels WHERE id = ?", (novel_id,))
+                    novel_row = await cursor.fetchone()
 
-            if not novel_row:
-                raise ValueError(f"Novel not found: {novel_id}")
+                    if not novel_row:
+                        logger.warning(f"Export failed: Novel not found {novel_id}")
+                        raise ValueError(f"Novel not found: {novel_id}")
 
-            novel = {
-                "id": novel_row[0],
-                "title": novel_row[1],
-                "author": novel_row[2],
-                "file_path": novel_row[3],
-                "word_count": novel_row[4],
-                "created_at": novel_row[5],
-            }
-
-            # Get chapters
-            cursor = await db.execute(
-                "SELECT * FROM chapters WHERE novel_id = ? ORDER BY chapter_number",
-                (novel_id,),
-            )
-            chapters_rows = await cursor.fetchall()
-            chapters = []
-            for row in chapters_rows:
-                chapters.append(
-                    {
-                        "id": row[0],
-                        "chapter_number": row[2],
-                        "title": row[3],
-                        "summary": row[5] if len(row) > 5 else None,
+                    novel = {
+                        "id": novel_row[0],
+                        "title": novel_row[1],
+                        "author": novel_row[2],
+                        "file_path": novel_row[3],
+                        "word_count": novel_row[4],
+                        "created_at": novel_row[5],
                     }
-                )
+                except ValueError:
+                    raise
+                except Exception as e:
+                    logger.error(f"Error fetching novel info for {novel_id}: {e}", exc_info=True)
+                    raise ValueError(f"Failed to fetch novel data: {e}")
 
-            # Get characters
-            cursor = await db.execute("SELECT * FROM characters WHERE novel_id = ?", (novel_id,))
-            characters_rows = await cursor.fetchall()
-            characters = []
-            for row in characters_rows:
-                characters.append(
-                    {
-                        "id": row[0],
-                        "name": row[2],
-                        "aliases": json.loads(row[3]) if row[3] else [],
-                        "description": row[4],
-                        "personality": row[5] if len(row) > 5 else None,
-                        "importance": row[6] if len(row) > 6 else 0.5,
-                    }
-                )
+                # Get chapters
+                chapters = []
+                try:
+                    cursor = await db.execute(
+                        "SELECT * FROM chapters WHERE novel_id = ? ORDER BY chapter_number",
+                        (novel_id,),
+                    )
+                    chapters_rows = await cursor.fetchall()
+                    for row in chapters_rows:
+                        chapters.append(
+                            {
+                                "id": row[0],
+                                "chapter_number": row[2],
+                                "title": row[3],
+                                "summary": row[5] if len(row) > 5 else None,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error fetching chapters for {novel_id}: {e}", exc_info=True)
 
-            # Get relationships
-            cursor = await db.execute("SELECT * FROM relationships WHERE novel_id = ?", (novel_id,))
-            relationships_rows = await cursor.fetchall()
-            relationships = []
-            for row in relationships_rows:
-                relationships.append(
-                    {
-                        "id": row[0],
-                        "source_id": row[2],
-                        "target_id": row[3],
-                        "type": row[4],
-                        "subtype": row[5] if len(row) > 5 else None,
-                        "description": row[6] if len(row) > 6 else None,
-                        "strength": row[7] if len(row) > 7 else 0.5,
-                    }
-                )
+                # Get characters
+                characters = []
+                try:
+                    cursor = await db.execute(
+                        "SELECT * FROM characters WHERE novel_id = ?", (novel_id,)
+                    )
+                    characters_rows = await cursor.fetchall()
+                    for row in characters_rows:
+                        try:
+                            aliases = json.loads(row[3]) if row[3] else []
+                        except json.JSONDecodeError:
+                            aliases = []
 
-            # Get plot events
-            cursor = await db.execute(
-                "SELECT * FROM plot_events WHERE novel_id = ? ORDER BY event_order",
-                (novel_id,),
-            )
-            events_rows = await cursor.fetchall()
-            events = []
-            for row in events_rows:
-                events.append(
-                    {
-                        "id": row[0],
-                        "title": row[2],
-                        "description": row[3],
-                        "chapter_id": row[4] if len(row) > 4 else None,
-                        "event_type": row[5] if len(row) > 5 else None,
-                        "importance": row[6] if len(row) > 6 else 0.5,
-                    }
-                )
+                        characters.append(
+                            {
+                                "id": row[0],
+                                "name": row[2],
+                                "aliases": aliases,
+                                "description": row[4],
+                                "personality": row[5] if len(row) > 5 else None,
+                                "importance": row[6] if len(row) > 6 else 0.5,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error fetching characters for {novel_id}: {e}", exc_info=True)
 
-            return {
-                "novel": novel,
-                "chapters": chapters,
-                "characters": characters,
-                "relationships": relationships,
-                "events": events,
-                "exported_at": datetime.now().isoformat(),
-            }
+                # Get relationships
+                relationships = []
+                try:
+                    cursor = await db.execute(
+                        "SELECT * FROM relationships WHERE novel_id = ?", (novel_id,)
+                    )
+                    relationships_rows = await cursor.fetchall()
+                    for row in relationships_rows:
+                        relationships.append(
+                            {
+                                "id": row[0],
+                                "source_id": row[2],
+                                "target_id": row[3],
+                                "type": row[4],
+                                "subtype": row[5] if len(row) > 5 else None,
+                                "description": row[6] if len(row) > 6 else None,
+                                "strength": row[7] if len(row) > 7 else 0.5,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error fetching relationships for {novel_id}: {e}", exc_info=True)
+
+                # Get plot events
+                events = []
+                try:
+                    cursor = await db.execute(
+                        "SELECT * FROM plot_events WHERE novel_id = ? ORDER BY event_order",
+                        (novel_id,),
+                    )
+                    events_rows = await cursor.fetchall()
+                    for row in events_rows:
+                        events.append(
+                            {
+                                "id": row[0],
+                                "title": row[2],
+                                "description": row[3],
+                                "chapter_id": row[4] if len(row) > 4 else None,
+                                "event_type": row[5] if len(row) > 5 else None,
+                                "importance": row[6] if len(row) > 6 else 0.5,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(f"Error fetching plot events for {novel_id}: {e}", exc_info=True)
+
+                return {
+                    "novel": novel,
+                    "chapters": chapters,
+                    "characters": characters,
+                    "relationships": relationships,
+                    "events": events,
+                    "exported_at": datetime.now().isoformat(),
+                }
+        except Exception as e:
+            logger.error(f"Fatal export error for {novel_id}: {e}", exc_info=True)
+            raise
 
     async def export_json(self, novel_id: str) -> str:
         """Export analysis results as JSON string"""

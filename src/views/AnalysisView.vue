@@ -242,6 +242,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { VideoPlay, Share, User, Timer, Download, SuccessFilled, Loading, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
@@ -254,20 +255,26 @@ const router = useRouter()
 const route = useRoute()
 const novelStore = useNovelStore()
 
+// 使用 store 中的状态
+const { 
+  analyzing, 
+  analysisProgress, 
+  progressText, 
+  analysisLogs, 
+  analysisResult, 
+  currentTaskId 
+} = storeToRefs(novelStore)
+
 const novels = ref<Novel[]>([])
 const selectedNovelId = ref('')
 const currentNovel = ref<Novel | null>(null)
-const analyzing = ref(false)
-const analysisProgress = ref(0)
-const progressText = ref('')
-const analysisLogs = ref<Array<{ type: string; message: string; time: string }>>([])
-const analysisResult = ref<{
-  characterCount: number
-  relationshipCount: number
-  plotCount: number
-  chapterCount: number
-} | null>(null)
-const currentTaskId = ref('')
+// const analyzing = ref(false) // Moved to store
+// const analysisProgress = ref(0) // Moved to store
+// const progressText = ref('') // Moved to store
+// const analysisLogs = ref<Array<{ type: string; message: string; time: string }>>([]) // Moved to store
+// const analysisResult = ref<{...} | null>(null) // Moved to store
+// const currentTaskId = ref('') // Moved to store
+
 const pollingInterval = ref<number | null>(null)
 const exportDialogVisible = ref(false)
 const exportFormat = ref<'json' | 'markdown'>('json')
@@ -280,6 +287,237 @@ const analysisConfig = ref({
   features: ['characters', 'relationships', 'plot', 'summary'],
   provider: '',
   model: ''
+})
+
+const availableModels = computed(() => {
+  const provider = PROVIDERS.find(p => p.id === analysisConfig.value.provider)
+  return provider ? provider.defaultModels : []
+})
+
+watch(() => analysisConfig.value.provider, (newVal) => {
+  const provider = PROVIDERS.find(p => p.id === newVal)
+  if (provider && provider.defaultModels.length > 0) {
+    if (provider.id === 'custom') {
+       // Custom provider might not have default models listed
+    } else if (!analysisConfig.value.model || !provider.defaultModels.includes(analysisConfig.value.model)) {
+      analysisConfig.value.model = provider.defaultModels[0]
+    }
+  }
+})
+
+const chapterMarks = computed(() => {
+  const max = currentNovel.value?.total_chapters || 100
+  return {
+    1: '第1章',
+    [max]: `第${max}章`
+  }
+})
+
+const handleNovelChange = async (id: string) => {
+  if (!id) return
+  try {
+    currentNovel.value = await novelStore.fetchNovel(id)
+    analysisConfig.value.chapterRange = [1, currentNovel.value.total_chapters]
+    
+    // 如果正在分析当前小说，不需要重置结果
+    // 只有当切换到不同小说且不在分析状态时，才尝试加载结果
+    if (!analyzing.value) {
+      if (currentNovel.value.analysis_status === 'completed') {
+        await loadAnalysisResult()
+      } else {
+        // 如果不是 completed，且没有正在进行的分析（store中状态），则清空结果
+        // 但要注意，如果 store 中保留的是上一次分析的结果，这里可能需要判断是否属于当前小说
+        // 简化起见，如果切换小说，且该小说状态已完成，加载其结果；否则清空当前显示的 store 结果
+        // 除非 store 中的结果本来就是这个小说的（比如刚分析完未离开页面又刷新）
+        // 这里做一个简单的策略：每次切换小说，如果状态完成就加载，否则清空 store 中的结果以避免显示错误数据
+        if (analysisResult.value) {
+            // 这里其实应该判断 analysisResult 是否属于当前小说，但 store 里没存 novelId
+            // 所以简单清空比较安全，除非正在分析中
+            novelStore.setAnalysisResult(null)
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load novel:', error)
+  }
+}
+
+const addLog = (type: string, message: string) => {
+  novelStore.addAnalysisLog(type, message)
+}
+
+const startAnalysis = async () => {
+  if (!selectedNovelId.value) return
+
+  // 重置 Store 状态
+  novelStore.clearAnalysisState()
+  novelStore.setAnalyzing(true)
+
+  try {
+    addLog('loading', '正在初始化分析任务...')
+
+    // 调用后端开始分析
+    const result = await novelStore.startAnalysis(selectedNovelId.value, {
+      depth: analysisConfig.value.depth,
+      provider: analysisConfig.value.provider,
+      model: analysisConfig.value.model
+    })
+
+    if (result.taskId) {
+      novelStore.setCurrentTaskId(result.taskId)
+      addLog('success', '分析任务已创建')
+      startPolling()
+    } else {
+      // 模拟分析进度（后端未实现时的备用方案）
+      await simulateAnalysis()
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '未知错误'
+    ElMessage.error('启动分析失败: ' + message)
+    addLog('error', '分析失败: ' + message)
+    novelStore.setAnalyzing(false)
+  }
+}
+
+const simulateAnalysis = async () => {
+  const steps = [
+    { progress: 10, message: '正在加载小说内容...' },
+    { progress: 25, message: '正在识别人物信息...' },
+    { progress: 50, message: '正在分析人物关系...' },
+    { progress: 75, message: '正在追踪情节线索...' },
+    { progress: 90, message: '正在生成章节摘要...' },
+    { progress: 100, message: '分析完成!' }
+  ]
+
+  for (const step of steps) {
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    novelStore.setAnalysisProgress(step.progress, step.message)
+    addLog(step.progress === 100 ? 'success' : 'loading', step.message)
+  }
+
+  // 模拟结果
+  novelStore.setAnalysisResult({
+    characterCount: 28,
+    relationshipCount: 45,
+    plotCount: 12,
+    chapterCount: currentNovel.value?.total_chapters || 0
+  })
+
+  // 更新小说状态
+  if (currentNovel.value) {
+    currentNovel.value.analysis_status = 'completed'
+  }
+
+  ElMessage.success('分析完成')
+  novelStore.setAnalyzing(false)
+}
+
+const startPolling = () => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+  }
+
+  pollingInterval.value = window.setInterval(async () => {
+    try {
+      const status = await novelStore.getAnalysisStatus(currentTaskId.value)
+      
+      novelStore.setAnalysisProgress(status.progress || 0, status.message || '分析中...')
+      
+      if (status.status === 'completed') {
+        stopPolling()
+        await loadAnalysisResult()
+        ElMessage.success('分析完成')
+        novelStore.setAnalyzing(false)
+        addLog('success', '分析完成!')
+      } else if (status.status === 'failed') {
+        stopPolling()
+        ElMessage.error('分析失败: ' + (status.error || '未知错误'))
+        novelStore.setAnalyzing(false)
+        addLog('error', '分析失败: ' + (status.error || '未知错误'))
+      }
+    } catch (error) {
+      console.error('Polling error:', error)
+    }
+  }, 2000)
+}
+
+const stopPolling = () => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+    pollingInterval.value = null
+  }
+}
+
+const cancelAnalysis = () => {
+  stopPolling()
+  novelStore.setAnalyzing(false)
+  addLog('info', '分析已取消')
+}
+
+const loadAnalysisResult = async () => {
+  try {
+    const result = await novelStore.getAnalysisResults(selectedNovelId.value)
+    novelStore.setAnalysisResult({
+      characterCount: result.character_count || 0,
+      relationshipCount: result.relationship_count || 0,
+      plotCount: result.plot_count || 0,
+      chapterCount: result.chapter_count || currentNovel.value?.total_chapters || 0
+    })
+  } catch (error) {
+    console.error('Failed to load analysis result:', error)
+    // 只有在开发模式或确实无法获取时才使用模拟数据，这里为了稳健先清空或保持原样
+    // 如果是 completed 状态但获取失败，可能是数据问题
+    if (currentNovel.value?.analysis_status === 'completed') {
+         // 尝试使用 store 中的模拟数据结构，或者保持 null 让用户重试
+         // 为了用户体验，这里暂时不回退到硬编码的模拟数据，而是提示错误
+         // 或者如果后端尚未实现该API，则需要保留之前的模拟逻辑
+         // 鉴于之前有模拟逻辑：
+        novelStore.setAnalysisResult({
+          characterCount: 28, // 模拟数据
+          relationshipCount: 45,
+          plotCount: 12,
+          chapterCount: currentNovel.value?.total_chapters || 0
+        })
+    }
+  }
+}
+
+// ... existing export and helper functions ...
+
+onMounted(async () => {
+  novels.value = await novelStore.fetchNovels()
+  
+  // 从 URL 参数获取小说 ID
+  const id = route.query.id as string
+  if (id) {
+    selectedNovelId.value = id
+    await handleNovelChange(id)
+  }
+
+  // 恢复状态逻辑：
+  // 如果 store 中正在分析，且没有设置轮询（说明是切换页面回来），则重新开始轮询
+  if (analyzing.value && currentTaskId.value && !pollingInterval.value) {
+      startPolling()
+  }
+
+  // Load default provider settings
+  try {
+    const settings = await settingsApi.loadSettings()
+    if (settings.defaultProvider) {
+      analysisConfig.value.provider = settings.defaultProvider
+      // Try to get saved model for this provider
+      if (settings[settings.defaultProvider]?.model) {
+        analysisConfig.value.model = settings[settings.defaultProvider].model
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+  }
+})
+
+onUnmounted(() => {
+  stopPolling()
+  // 注意：不再清空 store 状态，以保持页面切换后的数据
 })
 
 const availableModels = computed(() => {

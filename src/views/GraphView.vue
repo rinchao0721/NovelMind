@@ -50,15 +50,30 @@
         <span>加载中...</span>
       </div>
       
-      <div v-else-if="!selectedNovelId" class="empty-state">
+      <div v-else-if="!selectedNovelId || (!graphData.nodes.length && !loading)" class="empty-state">
         <el-icon><Share /></el-icon>
-        <p>请先选择一本小说</p>
+        <template v-if="!selectedNovelId">
+            <h3>请选择小说</h3>
+            <p>选择上方小说以查看人物关系图谱</p>
+        </template>
+        <template v-else-if="currentNovel && currentNovel.analysis_status !== 'completed'">
+            <h3>尚未进行分析</h3>
+            <p>该小说还未进行人物关系分析</p>
+            <el-button type="primary" @click="goToAnalysis">前往分析</el-button>
+        </template>
+        <template v-else>
+            <h3>暂无图谱数据</h3>
+            <p>分析已完成，但未能构建关系网络</p>
+            <p style="font-size: 12px; margin-top: 5px; color: #f56c6c" v-if="neo4jError">
+                {{ neo4jError }}
+            </p>
+        </template>
       </div>
 
-      <div ref="chartRef" class="chart" v-show="selectedNovelId && !loading"></div>
+      <div ref="chartRef" class="chart" v-show="selectedNovelId && !loading && graphData.nodes.length"></div>
 
       <!-- 筛选面板 -->
-      <div class="filter-panel" v-if="selectedNovelId">
+      <div class="filter-panel" v-if="selectedNovelId && graphData.nodes.length">
         <h4>关系类型筛选</h4>
         <el-checkbox-group v-model="visibleRelationTypes" @change="updateGraph">
           <el-checkbox 
@@ -159,12 +174,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { ZoomIn, ZoomOut, FullScreen, Download, Share, Loading } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
 import type { Novel, GraphData } from '@/types'
 
+const router = useRouter()
 const route = useRoute()
 const novelStore = useNovelStore()
 
@@ -179,10 +195,17 @@ const selectedCharacter = ref<any>(null)
 const selectedCharacterRelations = ref<any[]>([])
 const importanceThreshold = ref(0)
 const loading = ref(false)
+const neo4jError = ref('')
 const graphData = ref<GraphData>({
   nodes: [],
   links: []
 })
+
+const currentNovel = computed(() => novelStore.currentNovel)
+
+const goToAnalysis = () => {
+  router.push(`/analysis?id=${selectedNovelId.value}`)
+}
 
 const relationTypes = [
   { label: '亲属', value: 'family', color: '#f56c6c' },
@@ -214,19 +237,33 @@ const loadGraphData = async () => {
   if (!selectedNovelId.value) return
   
   loading.value = true
+  neo4jError.value = ''
   try {
     const data = await novelStore.fetchGraphData(selectedNovelId.value)
     graphData.value = data
+    // 如果没有节点但状态是完成，可能是数据问题
+    if (data.nodes.length === 0 && currentNovel.value?.analysis_status === 'completed') {
+       neo4jError.value = '未找到图谱数据，可能是Neo4j连接问题或分析结果为空'
+    }
     initChart()
   } catch (error) {
     console.error('Failed to load graph data:', error)
+    neo4jError.value = '加载失败: ' + (error instanceof Error ? error.message : '未知错误')
   } finally {
     loading.value = false
   }
 }
 
+// 监听小说选择变化以获取详情
+watch(selectedNovelId, async (newId) => {
+    if (newId) {
+        await novelStore.fetchNovel(newId)
+        loadGraphData()
+    }
+})
+
 const initChart = () => {
-  if (!chartRef.value) return
+  if (!chartRef.value || graphData.value.nodes.length === 0) return
 
   if (chart) {
     chart.dispose()
@@ -430,7 +467,7 @@ onMounted(async () => {
   const id = route.query.id as string
   if (id) {
     selectedNovelId.value = id
-    await loadGraphData()
+    // Watch will trigger data loading
   }
   
   window.addEventListener('resize', handleResize)

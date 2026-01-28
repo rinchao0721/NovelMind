@@ -66,18 +66,31 @@
     <!-- 空状态 -->
     <div v-if="filteredCharacters.length === 0" class="empty-state">
       <el-icon><User /></el-icon>
-      <h3>暂无人物数据</h3>
-      <p>请先选择小说并完成分析</p>
+      <template v-if="!selectedNovelId">
+        <h3>请选择小说</h3>
+        <p>选择上方小说以查看人物列表</p>
+      </template>
+      <template v-else-if="currentNovel && currentNovel.analysis_status !== 'completed'">
+        <h3>尚未进行分析</h3>
+        <p>该小说还未进行人物分析</p>
+        <el-button type="primary" @click="goToAnalysis">前往分析</el-button>
+      </template>
+      <template v-else>
+        <h3>暂无人物数据</h3>
+        <p>分析完成，但未找到匹配的人物</p>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useNovelStore } from '@/stores/novel'
+import { User, Search } from '@element-plus/icons-vue' // Added Search icon
 
 const router = useRouter()
+const route = useRoute()
 const novelStore = useNovelStore()
 
 const novels = ref<any[]>([])
@@ -85,8 +98,9 @@ const selectedNovelId = ref('')
 const searchQuery = ref('')
 const sortBy = ref('importance')
 
-// 使用 store 中的人物数据
+// 使用 store 中的数据
 const characters = computed(() => novelStore.characters)
+const currentNovel = computed(() => novelStore.currentNovel)
 
 const filteredCharacters = computed(() => {
   let result = [...characters.value]
@@ -119,12 +133,22 @@ const filteredCharacters = computed(() => {
 // 监听小说选择变化
 watch(selectedNovelId, async (newId) => {
   if (newId) {
+    await novelStore.fetchNovel(newId) // Fetch novel details to get status
     await novelStore.fetchCharacters(newId)
   }
 })
 
+const goToAnalysis = () => {
+  router.push(`/analysis?id=${selectedNovelId.value}`)
+}
+
 onMounted(async () => {
   novels.value = await novelStore.fetchNovels()
+  
+  const id = route.query.id as string
+  if (id) {
+    selectedNovelId.value = id
+  }
 })
 </script>
 

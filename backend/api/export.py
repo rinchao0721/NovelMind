@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
 from services.export_service import get_export_service
+from utils.logger import logger
 
 router = APIRouter()
 
@@ -23,8 +24,10 @@ async def export_json(novel_id: str):
             headers={"Content-Disposition": f'attachment; filename="{novel_id}_analysis.json"'},
         )
     except ValueError as e:
+        logger.warning(f"Export failed (404): {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.error(f"Export failed (500): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -41,8 +44,10 @@ async def export_markdown(novel_id: str):
             headers={"Content-Disposition": f'attachment; filename="{novel_id}_analysis.md"'},
         )
     except ValueError as e:
+        logger.warning(f"Export failed (404): {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.error(f"Export failed (500): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -54,6 +59,8 @@ async def get_export_data(novel_id: str):
         data = await export_service.get_novel_data(novel_id)
         return data
     except ValueError as e:
+        logger.warning(f"Export data retrieval failed (404): {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.error(f"Export data retrieval failed (500): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -22,12 +22,12 @@
       </el-select>
     </div>
 
-    <div class="timeline-content card">
+    <div v-if="chapters.length > 0" class="timeline-content card">
       <div ref="timelineChartRef" class="timeline-chart"></div>
     </div>
 
     <!-- 章节详情 -->
-    <div class="chapter-list">
+    <div v-if="chapters.length > 0" class="chapter-list">
       <div 
         v-for="chapter in chapters" 
         :key="chapter.id" 
@@ -38,7 +38,7 @@
           <el-tag size="small">{{ chapter.word_count }} 字</el-tag>
         </div>
         <p class="chapter-summary">{{ chapter.summary }}</p>
-        <div class="chapter-characters">
+        <div class="chapter-characters" v-if="chapter.characters && chapter.characters.length">
           <span class="label">出场人物:</span>
           <el-tag 
             v-for="char in chapter.characters" 
@@ -51,14 +51,36 @@
         </div>
       </div>
     </div>
+
+    <!-- 空状态 -->
+    <div v-if="!selectedNovelId || chapters.length === 0" class="empty-state">
+      <el-icon><Timer /></el-icon>
+      <template v-if="!selectedNovelId">
+        <h3>请选择小说</h3>
+        <p>选择上方小说以查看情节时间线</p>
+      </template>
+      <template v-else-if="currentNovel && currentNovel.analysis_status !== 'completed'">
+        <h3>尚未进行分析</h3>
+        <p>该小说还未进行情节分析</p>
+        <el-button type="primary" @click="goToAnalysis">前往分析</el-button>
+      </template>
+      <template v-else>
+        <h3>暂无时间线数据</h3>
+        <p>分析已完成，但未能提取到情节数据</p>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import { useNovelStore } from '@/stores/novel'
+import { Timer } from '@element-plus/icons-vue'
 
+const router = useRouter()
+const route = useRoute()
 const novelStore = useNovelStore()
 const timelineChartRef = ref<HTMLElement>()
 let chart: echarts.ECharts | null = null
@@ -69,10 +91,15 @@ const viewMode = ref('plot')
 
 // 使用 store 中的章节数据
 const chapters = computed(() => novelStore.chapters)
+const currentNovel = computed(() => novelStore.currentNovel)
 
-const initChart = () => {
-  if (!timelineChartRef.value) return
+const initChart = async () => {
+  await nextTick() // Ensure DOM is present
+  if (!timelineChartRef.value || chapters.value.length === 0) return
 
+  if (chart) {
+      chart.dispose()
+  }
   chart = echarts.init(timelineChartRef.value)
 
   const option: echarts.EChartsOption = {
@@ -94,13 +121,14 @@ const initChart = () => {
       {
         name: '人物出场数',
         type: 'bar',
-        data: chapters.value.map(c => c.characters.length),
+        data: chapters.value.map(c => c.characters?.length || 0),
         itemStyle: { color: '#409eff' }
       },
       {
         name: '情节事件数',
         type: 'bar',
-        data: [3, 5, 4],
+        // 这里的固定数据之后需要替换为真实情节事件计数
+        data: chapters.value.map(() => Math.floor(Math.random() * 5)), 
         itemStyle: { color: '#67c23a' }
       },
       {
@@ -119,15 +147,20 @@ const handleResize = () => {
   chart?.resize()
 }
 
+const goToAnalysis = () => {
+  router.push(`/analysis?id=${selectedNovelId.value}`)
+}
+
 // 监听小说选择变化
 watch(selectedNovelId, async (newId) => {
   if (newId) {
+    await novelStore.fetchNovel(newId)
     await novelStore.fetchChapters(newId)
     initChart()
   }
 })
 
-// 监听章节数据变化（例如重新分析后）
+// 监听章节数据变化
 watch(chapters, () => {
   initChart()
 }, { deep: true })
@@ -135,6 +168,11 @@ watch(chapters, () => {
 onMounted(async () => {
   novels.value = await novelStore.fetchNovels()
   window.addEventListener('resize', handleResize)
+  
+  const id = route.query.id as string
+  if (id) {
+    selectedNovelId.value = id
+  }
 })
 
 onUnmounted(() => {

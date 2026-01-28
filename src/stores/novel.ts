@@ -3,6 +3,20 @@ import { ref } from 'vue'
 import { novelsApi, analysisApi, charactersApi, relationshipsApi } from '@/api'
 import type { Novel, Character, Relationship, GraphData } from '@/types'
 
+// Analysis types
+export interface AnalysisResult {
+  characterCount: number
+  relationshipCount: number
+  plotCount: number
+  chapterCount: number
+}
+
+export interface AnalysisLog {
+  type: string
+  message: string
+  time: string
+}
+
 export const useNovelStore = defineStore('novel', () => {
   const novels = ref<Novel[]>([])
   const currentNovel = ref<Novel | null>(null)
@@ -11,6 +25,14 @@ export const useNovelStore = defineStore('novel', () => {
   const relationships = ref<Relationship[]>([])
   const graphData = ref<GraphData | null>(null)
   const loading = ref(false)
+
+  // Analysis state
+  const analyzing = ref(false)
+  const analysisProgress = ref(0)
+  const progressText = ref('')
+  const analysisLogs = ref<AnalysisLog[]>([])
+  const analysisResult = ref<AnalysisResult | null>(null)
+  const currentTaskId = ref('')
 
   // 获取小说列表
   const fetchNovels = async (): Promise<Novel[]> => {
@@ -186,6 +208,48 @@ export const useNovelStore = defineStore('novel', () => {
     }
   }
 
+  // 设置分析进度
+  const setAnalysisProgress = (progress: number, text: string = '') => {
+    analysisProgress.value = progress
+    if (text) {
+      progressText.value = text
+    }
+  }
+
+  // 添加分析日志
+  const addAnalysisLog = (type: string, message: string) => {
+    analysisLogs.value.push({
+      type,
+      message,
+      time: new Date().toLocaleTimeString()
+    })
+  }
+
+  // 设置分析结果
+  const setAnalysisResult = (result: AnalysisResult) => {
+    analysisResult.value = result
+  }
+
+  // 清空分析状态
+  const clearAnalysisState = () => {
+    analyzing.value = false
+    analysisProgress.value = 0
+    progressText.value = ''
+    analysisLogs.value = []
+    analysisResult.value = null
+    currentTaskId.value = ''
+  }
+
+  // 设置分析中状态
+  const setAnalyzing = (value: boolean) => {
+    analyzing.value = value
+  }
+
+  // 设置当前任务 ID
+  const setCurrentTaskId = (taskId: string) => {
+    currentTaskId.value = taskId
+  }
+
   return {
     novels,
     currentNovel,
@@ -194,6 +258,14 @@ export const useNovelStore = defineStore('novel', () => {
     relationships,
     graphData,
     loading,
+    // Analysis state
+    analyzing,
+    analysisProgress,
+    progressText,
+    analysisLogs,
+    analysisResult,
+    currentTaskId,
+    // Methods
     fetchNovels,
     fetchNovel,
     fetchChapters,
@@ -204,6 +276,13 @@ export const useNovelStore = defineStore('novel', () => {
     fetchGraphData,
     startAnalysis,
     getAnalysisStatus,
-    getAnalysisResults
+    getAnalysisResults,
+    // Analysis methods
+    setAnalysisProgress,
+    addAnalysisLog,
+    setAnalysisResult,
+    clearAnalysisState,
+    setAnalyzing,
+    setCurrentTaskId
   }
 })
