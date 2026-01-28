@@ -69,25 +69,53 @@ function createWindow() {
 
 // 启动 Python 后端
 function startBackend() {
-  if (process.env.VITE_DEV_SERVER_URL) {
-    // 开发环境：后端由 npm script 单独启动
-    log.info('Development mode: Backend should be started separately')
-    return
+  const isDev = !!process.env.VITE_DEV_SERVER_URL
+  let backendPath = ''
+  let executable = ''
+  let args: string[] = []
+
+  if (isDev) {
+    // 开发环境：后端由 npm script 单独启动 (已废弃，现在由 Electron 启动)
+    // log.info('Development mode: Backend should be started separately')
+    // return
+
+    // Dev mode: use uv run python from source
+    // __dirname in dev (vite-plugin-electron) usually maps to dist-electron or electron/
+    // We need to get to project root then backend
+    // Assuming structure: root/electron/main.ts -> root/dist-electron/main.js
+    backendPath = path.join(__dirname, '../backend')
+    
+    // Check if uv is available, otherwise fall back to python
+    // For simplicity in this environment where uv is known, we use uv
+    // Windows: uv.exe, Mac/Linux: uv
+    executable = process.platform === 'win32' ? 'uv.exe' : 'uv'
+    
+    // Use 'uv run python main.py' to run in the correct environment
+    args = ['run', 'python', 'main.py']
+    
+    log.info(`Development mode: Starting backend using ${executable} in ${backendPath}`)
+  } else {
+    // Production mode
+    backendPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'backend')
+      : path.join(__dirname, '../backend')
+
+    executable = process.platform === 'win32' ? 'python' : 'python3'
+    args = ['main.py']
+    
+    log.info(`Production mode: Starting backend from: ${backendPath}`)
   }
 
-  const backendPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'backend')
-    : path.join(__dirname, '../backend')
+  // Check if backend port is already in use (to avoid conflicts with concurrently)
+  // Simple check: if we fail to bind, the backend code handles it or we see error
+  // But here we just spawn.
 
-  const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3'
-
-  log.info(`Starting backend from: ${backendPath}`)
-
-  backendProcess = spawn(pythonExecutable, ['main.py'], {
+  backendProcess = spawn(executable, args, {
     cwd: backendPath,
     env: {
       ...process.env,
-      APP_PORT: String(BACKEND_PORT)
+      APP_PORT: String(BACKEND_PORT),
+      PYTHONUNBUFFERED: '1' // Ensure output is flushed immediately
     },
     stdio: ['pipe', 'pipe', 'pipe']
   })
@@ -101,7 +129,13 @@ function startBackend() {
   backendProcess.stderr?.on('data', (data) => {
     const msg = data.toString().trim()
     console.error(`Backend Error: ${msg}`)
+    // Ignore some common harmless warnings if needed
     log.error(`[Backend Error] ${msg}`)
+  })
+
+  backendProcess.on('error', (err) => {
+    log.error(`Failed to start backend: ${err.message}`)
+    console.error(`Failed to start backend: ${err.message}`)
   })
 
   backendProcess.on('close', (code) => {

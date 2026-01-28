@@ -7,7 +7,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:electron\" \"npm run dev:backend\"",
+    "dev": "vite",
     "dev:frontend": "vite",
     "dev:electron": "vite",
     "dev:backend": "cd backend && uv run python main.py",
