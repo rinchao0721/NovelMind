@@ -39,6 +39,7 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FileImport: typeof import('./components/import/FileImport.vue')['default']
+    ProviderAvatar: typeof import('./components/ProviderAvatar.vue')['default']
     RelationGraph: typeof import('./components/graph/RelationGraph.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

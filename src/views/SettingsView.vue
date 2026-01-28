@@ -13,13 +13,19 @@
             <div class="sidebar-header">模型服务商</div>
             <div class="provider-list">
               <div 
-                v-for="provider in providers" 
+                v-for="provider in PROVIDERS" 
                 :key="provider.id"
                 class="provider-item"
                 :class="{ active: activeProvider === provider.id, default: settings.defaultProvider === provider.id }"
                 @click="activeProvider = provider.id"
               >
-                <div class="provider-icon">{{ provider.icon }}</div>
+                <div class="provider-icon">
+                  <ProviderAvatar 
+                    :provider-id="provider.id" 
+                    :name="provider.name"
+                    :size="24"
+                  />
+                </div>
                 <div class="provider-name">{{ provider.name }}</div>
                 <div v-if="settings.defaultProvider === provider.id" class="default-badge">默认</div>
               </div>
@@ -28,7 +34,15 @@
           
           <div class="llm-content">
             <div class="content-header">
-              <h3>{{ getProviderName(activeProvider) }}</h3>
+              <div class="provider-info">
+                <ProviderAvatar 
+                  :provider-id="activeProvider" 
+                  :name="getProviderName(activeProvider)"
+                  :size="28"
+                  style="margin-right: 12px"
+                />
+                <h3>{{ getProviderName(activeProvider) }}</h3>
+              </div>
               <el-button 
                 v-if="settings.defaultProvider !== activeProvider"
                 size="small" 
@@ -419,6 +433,8 @@ import { ref, reactive, onMounted, computed, onUnmounted, nextTick, watch } from
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Link, Document, ChatDotRound, Refresh, Delete } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api'
+import { PROVIDERS } from '@/config/providers'
+import ProviderAvatar from '@/components/ProviderAvatar.vue'
 
 const activeTab = ref('llm')
 const activeProvider = ref('openai') // Default to openai, no longer collapse array
@@ -426,21 +442,6 @@ const neo4jStatus = ref('')
 const saving = ref(false)
 const testingProvider = ref('')
 const testingNeo4j = ref(false)
-
-const providers = [
-  { id: 'openai', name: 'OpenAI', icon: '🤖' },
-  { id: 'claude', name: 'Claude', icon: '🧠' },
-  { id: 'gemini', name: 'Gemini', icon: '✨' },
-  { id: 'deepseek', name: 'DeepSeek', icon: '🐋' },
-  { id: 'qwen', name: '阿里百炼', icon: '☁️' },
-  { id: 'zhipu', name: '智谱 AI', icon: '🚀' },
-  { id: 'baidu', name: '百度文心', icon: '🐼' },
-  { id: 'aihubmix', name: 'AIHubMix', icon: '🔄' },
-  { id: 'siliconflow', name: '硅基流动', icon: '⚡' },
-  { id: 'openrouter', name: 'OpenRouter', icon: '🌐' },
-  { id: 'ollama', name: 'Ollama', icon: '🦙' },
-  { id: 'custom', name: '自定义 API', icon: '⚙️' },
-]
 
 // Logs logic
 const logs = ref<string[]>([])
@@ -487,7 +488,7 @@ const settings = ref({
   dataPath: ''
 })
 
-const getProviderName = (id: string) => providers.find(p => p.id === id)?.name || id
+const getProviderName = (id: string) => PROVIDERS.find(p => p.id === id)?.name || id
 
 const setDefaultProvider = async (id: string) => {
   settings.value.defaultProvider = id
@@ -804,9 +805,14 @@ onUnmounted(() => {
       justify-content: space-between;
       align-items: center;
 
-      h3 {
-        margin: 0;
-        font-size: 18px;
+      .provider-info {
+        display: flex;
+        align-items: center;
+
+        h3 {
+          margin: 0;
+          font-size: 18px;
+        }
       }
     }
 
