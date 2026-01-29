@@ -324,8 +324,6 @@ class AnalysisEngine:
         model: Optional[str] = None,
     ) -> List[Dict]:
         """Generate chapter summaries with concurrency control"""
-        summaries = []
-
         # Limit number of summaries based on depth
         max_chapters = {"quick": 5, "standard": 20, "deep": len(chapters)}[depth]
         target_chapters = chapters[:max_chapters]

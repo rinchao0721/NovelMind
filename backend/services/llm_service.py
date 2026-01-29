@@ -410,7 +410,7 @@ class LLMService:
                     text = text[start:end]
 
             return json.loads(text)
-        except (json.JSONDecodeError, IndexError, AttributeError) as e:
+        except (json.JSONDecodeError, IndexError, AttributeError):
             # We don't log warning here because complete_with_validation handles it
             return None
 
