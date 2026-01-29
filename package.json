@@ -16,8 +16,6 @@
     "build": "npm run build:backend && vue-tsc --noEmit && vite build",
     "build:electron": "npm run build && electron-builder",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux",
     "preview": "vite preview",
     "setup": "npm install && cd backend && uv sync",
     "setup:all": "npm run setup",
@@ -83,37 +81,6 @@
         }
       ],
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
-    },
-    "mac": {
-      "icon": "resources/icons/icon.png",
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "category": "public.app-category.productivity"
-    },
-    "linux": {
-      "icon": "resources/icons/icon.png",
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "category": "Office"
     },
     "nsis": {
       "oneClick": false,
