@@ -49,5 +49,7 @@ jobs:
       - name: Build & Publish Electron App
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          # Increase timeout for large file uploads
+          ELECTRON_BUILDER_HTTP_TIMEOUT: 600000
         run: npm run build:win
         shell: bash

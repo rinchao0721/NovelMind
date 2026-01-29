@@ -1,6 +1,6 @@
 {
   "name": "novelmind",
-  "version": "1.0.0",
+  "version": "0.1.3",
   "description": "AI-powered novel plot analysis and character relationship visualization tool",
   "main": "dist-electron/main.js",
   "author": "NovelMind Team",
