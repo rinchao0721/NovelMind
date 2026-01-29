@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="NovelMind API",
     description="AI-powered novel plot analysis and character relationship visualization",
-    version="1.0.0",
+    version="0.0.1",
     lifespan=lifespan,
 )
 
