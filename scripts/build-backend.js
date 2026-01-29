@@ -45,7 +45,10 @@ console.log(`[Build] Using Command: ${pythonCmd}`);
 
 // 构建 PyInstaller 命令
 
-let args = ['-m', 'PyInstaller', 'novelmind.spec', '--noconfirm', '--clean'];
+const specFile = path.join(backendDir, 'novelmind.spec');
+console.log(`[Build] Spec file path: ${specFile}`);
+
+let args = ['-m', 'PyInstaller', specFile, '--noconfirm', '--clean'];
 
 if (useUv) {
     args = ['run', 'python', ...args];
