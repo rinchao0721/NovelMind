@@ -55,12 +55,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel } from '@/types'
 
 import NovelSelector from '@/components/analysis/NovelSelector.vue'
 import AnalysisConfigForm from '@/components/analysis/AnalysisConfigForm.vue'
