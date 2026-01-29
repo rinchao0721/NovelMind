@@ -51,7 +51,7 @@ jobs:
           python-version: '3.11'
           
       - name: Install Dependencies
-        run: uv sync --extra dev
+        run: uv sync --frozen
         
       - name: Lint Backend (Ruff)
-        run: uv run ruff check .
+        run: uv run --with ruff ruff check .
