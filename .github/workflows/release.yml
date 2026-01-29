@@ -10,13 +10,9 @@ permissions:
 
 jobs:
   build-release:
-    name: Build ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-        
+    name: Build Windows
+    runs-on: windows-latest
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -53,12 +49,5 @@ jobs:
       - name: Build & Publish Electron App
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            npm run build:win
-          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            npm run build:mac
-          else
-            npm run build:linux
-          fi
+        run: npm run build:win
         shell: bash

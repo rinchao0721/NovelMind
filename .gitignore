@@ -12,7 +12,7 @@ dist/
 dist-electron/
 release/
 build/
-*.spec
+# *.spec  <-- Removed to allow novelmind.spec
 out/
 
 # Environment files
