@@ -7,6 +7,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 
 import App from './App.vue'
 import router from './router'
+import { setApiBaseUrl } from './api'
 import './assets/styles/main.scss'
 
 const app = createApp(App)
@@ -20,4 +21,21 @@ app.use(createPinia())
 app.use(router)
 app.use(ElementPlus)
 
-app.mount('#app')
+// Initialize app with dynamic port
+const init = async () => {
+  // If running in Electron, get the dynamic port
+  if (window.electronAPI) {
+    try {
+      const port = await window.electronAPI.getBackendPort()
+      if (port) {
+        setApiBaseUrl(port)
+      }
+    } catch (e) {
+      console.error('Failed to initialize backend connection:', e)
+    }
+  }
+  
+  app.mount('#app')
+}
+
+init()

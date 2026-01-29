@@ -3,9 +3,10 @@ LLM Provider implementations for different API services
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncGenerator
 import httpx
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +24,24 @@ class BaseLLMProvider(ABC):
         """Generate chat completion"""
         pass
 
+    async def stream_chat(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming chat completion (Default fallback to non-streaming)"""
+        # Default implementation yields the full response at once if streaming is not supported by subclass
+        response = await self.chat(messages, **kwargs)
+        yield response
+
     async def complete(self, prompt: str, **kwargs) -> str:
         """Generate completion from a single prompt"""
         messages = [{"role": "user", "content": prompt}]
         return await self.chat(messages, **kwargs)
+
+    async def stream_complete(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Generate streaming completion from a single prompt"""
+        messages = [{"role": "user", "content": prompt}]
+        async for chunk in self.stream_chat(messages, **kwargs):
+            yield chunk
 
     async def test_connection(self) -> bool:
         """Test if the connection works"""
@@ -71,6 +86,39 @@ class OpenAIProvider(BaseLLMProvider):
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+
+    async def stream_chat(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming chat completion using OpenAI API"""
+        url = f"{self.base_url}/chat/completions"
+
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens", 4096),
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        line = line[6:]  # Remove "data: " prefix
+                        if line.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(line)
+                            if "choices" in data and len(data["choices"]) > 0:
+                                delta = data["choices"][0].get("delta", {})
+                                if "content" in delta:
+                                    yield delta["content"]
+                        except json.JSONDecodeError:
+                            continue
 
 
 class AIHubMixProvider(OpenAIProvider):
@@ -191,6 +239,55 @@ class ClaudeProvider(BaseLLMProvider):
             data = response.json()
             return data["content"][0]["text"]
 
+    async def stream_chat(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming chat completion using Claude API"""
+        url = f"{self.base_url}/messages"
+
+        headers = {
+            "x-api-key": self.api_key,
+            "Content-Type": "application/json",
+            "anthropic-version": "2023-06-01",
+        }
+
+        # Convert messages to Claude format
+        system_message = ""
+        claude_messages = []
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_message = msg["content"]
+            else:
+                claude_messages.append({"role": msg["role"], "content": msg["content"]})
+
+        payload = {
+            "model": self.model,
+            "messages": claude_messages,
+            "max_tokens": kwargs.get("max_tokens", 4096),
+            "stream": True,
+        }
+
+        if system_message:
+            payload["system"] = system_message
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        line = line[6:]  # Remove "data: " prefix
+                        if line.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(line)
+                            if data.get("type") == "content_block_delta":
+                                delta = data.get("delta", {})
+                                if delta.get("type") == "text_delta":
+                                    yield delta.get("text", "")
+                        except json.JSONDecodeError:
+                            continue
+
 
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini API provider"""
@@ -223,6 +320,8 @@ class GeminiProvider(BaseLLMProvider):
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
+    # Gemini Streaming not implemented yet, fallback to non-streaming
+
 
 class ZhipuProvider(BaseLLMProvider):
     """Zhipu AI (GLM) API provider"""
@@ -249,6 +348,39 @@ class ZhipuProvider(BaseLLMProvider):
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+
+    async def stream_chat(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming chat completion using Zhipu API (OpenAI compatible)"""
+        url = f"{self.base_url}/chat/completions"
+
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens", 4096),
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        line = line[6:]  # Remove "data: " prefix
+                        if line.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(line)
+                            if "choices" in data and len(data["choices"]) > 0:
+                                delta = data["choices"][0].get("delta", {})
+                                if "content" in delta:
+                                    yield delta["content"]
+                        except json.JSONDecodeError:
+                            continue
 
 
 class BaiduProvider(BaseLLMProvider):
@@ -303,6 +435,40 @@ class BaiduProvider(BaseLLMProvider):
             response.raise_for_status()
             data = response.json()
             return data["result"]
+
+    async def stream_chat(
+        self, messages: List[Dict[str, str]], **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming chat completion using Baidu API"""
+        access_token = await self._get_access_token()
+
+        model_endpoints = {
+            "ernie-4.0-8k": "completions_pro",
+            "ernie-3.5-8k": "completions",
+            "ernie-speed": "ernie_speed",
+        }
+
+        endpoint = model_endpoints.get(self.model, "completions_pro")
+        url = f"https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/{endpoint}?access_token={access_token}"
+
+        payload = {
+            "messages": messages,
+            "temperature": kwargs.get("temperature", 0.7),
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", url, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        line = line[6:]
+                        try:
+                            data = json.loads(line)
+                            if "result" in data:
+                                yield data["result"]
+                        except json.JSONDecodeError:
+                            continue
 
 
 # Provider factory

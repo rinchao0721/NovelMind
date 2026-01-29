@@ -16,8 +16,8 @@
                 v-for="provider in PROVIDERS" 
                 :key="provider.id"
                 class="provider-item"
-                :class="{ active: activeProvider === provider.id, default: settings.defaultProvider === provider.id }"
-                @click="activeProvider = provider.id"
+                :class="{ active: activeProviderId === provider.id, default: settings.defaultProvider === provider.id }"
+                @click="activeProviderId = provider.id"
               >
                 <div class="provider-icon">
                   <ProviderAvatar 
@@ -36,219 +36,91 @@
             <div class="content-header">
               <div class="provider-info">
                 <ProviderAvatar 
-                  :provider-id="activeProvider" 
-                  :name="getProviderName(activeProvider)"
+                  :provider-id="activeProviderId" 
+                  :name="activeProviderConfig?.name"
                   :size="28"
                   style="margin-right: 12px"
                 />
-                <h3>{{ getProviderName(activeProvider) }}</h3>
+                <h3>{{ activeProviderConfig?.name }}</h3>
               </div>
               <el-button 
-                v-if="settings.defaultProvider !== activeProvider"
+                v-if="settings.defaultProvider !== activeProviderId"
                 size="small" 
-                @click="setDefaultProvider(activeProvider)"
+                @click="setDefaultProvider(activeProviderId)"
               >
                 设为默认
               </el-button>
               <el-tag v-else type="success">当前默认</el-tag>
             </div>
 
-            <el-form label-width="120px" class="provider-form">
-              <!-- OpenAI -->
-              <template v-if="activeProvider === 'openai'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.openai.apiKey" type="password" show-password placeholder="sk-..." />
-                </el-form-item>
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.openai.baseUrl" placeholder="https://api.openai.com/v1" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.openai.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="GPT-4o" value="gpt-4o" />
-                    <el-option label="GPT-4o-mini" value="gpt-4o-mini" />
-                    <el-option label="GPT-4-Turbo" value="gpt-4-turbo" />
-                    <el-option label="GPT-3.5-Turbo" value="gpt-3.5-turbo" />
-                  </el-select>
-                </el-form-item>
-              </template>
+            <!-- 动态表单 -->
+            <el-form 
+              v-if="activeProviderConfig && currentProviderSettings" 
+              label-width="120px" 
+              class="provider-form"
+            >
+              <!-- API Key -->
+              <el-form-item v-if="activeProviderConfig.requiresApiKey" label="API Key">
+                <el-input 
+                  v-model="currentProviderSettings.apiKey" 
+                  type="password" 
+                  show-password 
+                  :placeholder="`请输入 ${activeProviderConfig.name} API Key`" 
+                />
+              </el-form-item>
 
-              <!-- Claude -->
-              <template v-if="activeProvider === 'claude'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.claude.apiKey" type="password" show-password placeholder="sk-ant-..." />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.claude.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="Claude 3.5 Sonnet" value="claude-3-5-sonnet-20241022" />
-                    <el-option label="Claude 3.5 Haiku" value="claude-3-5-haiku-20241022" />
-                    <el-option label="Claude 3 Opus" value="claude-3-opus-20240229" />
-                  </el-select>
-                </el-form-item>
-              </template>
+              <!-- Secret Key (如百度) -->
+              <el-form-item v-if="activeProviderConfig.requiresSecretKey" label="Secret Key">
+                <el-input 
+                  v-model="currentProviderSettings.secretKey" 
+                  type="password" 
+                  show-password 
+                  placeholder="请输入 Secret Key" 
+                />
+              </el-form-item>
 
-              <!-- Gemini -->
-              <template v-if="activeProvider === 'gemini'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.gemini.apiKey" type="password" show-password placeholder="AIza..." />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.gemini.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="Gemini 1.5 Pro" value="gemini-1.5-pro" />
-                    <el-option label="Gemini 1.5 Flash" value="gemini-1.5-flash" />
-                    <el-option label="Gemini Pro" value="gemini-pro" />
-                  </el-select>
-                </el-form-item>
-              </template>
+              <!-- Base URL -->
+              <el-form-item v-if="activeProviderConfig.supportsCustomBaseUrl" label="Base URL">
+                <el-input 
+                  v-model="currentProviderSettings.baseUrl" 
+                  :placeholder="activeProviderConfig.defaultBaseUrl || 'https://api.example.com/v1'" 
+                />
+              </el-form-item>
 
-              <!-- DeepSeek -->
-              <template v-if="activeProvider === 'deepseek'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.deepseek.apiKey" type="password" show-password />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.deepseek.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="DeepSeek Chat" value="deepseek-chat" />
-                    <el-option label="DeepSeek Reasoner" value="deepseek-reasoner" />
-                  </el-select>
-                </el-form-item>
-              </template>
+              <!-- 模型选择 -->
+              <el-form-item label="模型">
+                <el-select 
+                  v-model="currentProviderSettings.model" 
+                  allow-create 
+                  filterable 
+                  default-first-option 
+                  placeholder="选择或输入模型名称"
+                  style="width: 100%"
+                >
+                  <el-option 
+                    v-for="model in activeProviderConfig.defaultModels" 
+                    :key="model" 
+                    :label="model" 
+                    :value="model" 
+                  />
+                </el-select>
+              </el-form-item>
 
-              <!-- Qwen -->
-              <template v-if="activeProvider === 'qwen'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.qwen.apiKey" type="password" show-password />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.qwen.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="Qwen-Max" value="qwen-max" />
-                    <el-option label="Qwen-Plus" value="qwen-plus" />
-                    <el-option label="Qwen-Turbo" value="qwen-turbo" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- Zhipu -->
-              <template v-if="activeProvider === 'zhipu'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.zhipu.apiKey" type="password" show-password />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.zhipu.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="GLM-4" value="glm-4" />
-                    <el-option label="GLM-4-Flash" value="glm-4-flash" />
-                    <el-option label="GLM-3-Turbo" value="glm-3-turbo" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- Baidu -->
-              <template v-if="activeProvider === 'baidu'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.baidu.apiKey" type="password" show-password placeholder="应用 API Key" />
-                </el-form-item>
-                <el-form-item label="Secret Key">
-                  <el-input v-model="settings.baidu.secretKey" type="password" show-password placeholder="应用 Secret Key" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.baidu.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="ERNIE 4.0" value="ernie-4.0-8k" />
-                    <el-option label="ERNIE 3.5" value="ernie-3.5-8k" />
-                    <el-option label="ERNIE Speed" value="ernie-speed" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- AIHubMix -->
-              <template v-if="activeProvider === 'aihubmix'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.aihubmix.apiKey" type="password" show-password placeholder="sk-..." />
-                </el-form-item>
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.aihubmix.baseUrl" placeholder="https://aihubmix.com/v1" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.aihubmix.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="GPT-4o" value="gpt-4o" />
-                    <el-option label="Claude 3.5 Sonnet" value="claude-3-5-sonnet-20241022" />
-                    <el-option label="Gemini 1.5 Pro" value="gemini-1.5-pro-latest" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- SiliconFlow -->
-              <template v-if="activeProvider === 'siliconflow'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.siliconflow.apiKey" type="password" show-password placeholder="sk-..." />
-                </el-form-item>
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.siliconflow.baseUrl" placeholder="https://api.siliconflow.cn/v1" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.siliconflow.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="DeepSeek-V3" value="deepseek-ai/DeepSeek-V3" />
-                    <el-option label="DeepSeek-R1" value="deepseek-ai/DeepSeek-R1" />
-                    <el-option label="Qwen2.5-72B" value="Qwen/Qwen2.5-72B-Instruct" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- OpenRouter -->
-              <template v-if="activeProvider === 'openrouter'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.openrouter.apiKey" type="password" show-password placeholder="sk-or-..." />
-                </el-form-item>
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.openrouter.baseUrl" placeholder="https://openrouter.ai/api/v1" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.openrouter.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="GPT-4o" value="openai/gpt-4o" />
-                    <el-option label="Claude 3.5 Sonnet" value="anthropic/claude-3.5-sonnet" />
-                    <el-option label="Gemini Pro 1.5" value="google/gemini-pro-1.5" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- Ollama -->
-              <template v-if="activeProvider === 'ollama'">
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.ollama.baseUrl" placeholder="http://localhost:11434/v1" />
-                </el-form-item>
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.ollama.apiKey" type="password" show-password placeholder="ollama (optional)" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-select v-model="settings.ollama.model" allow-create filterable default-first-option style="width: 100%">
-                    <el-option label="Llama 3" value="llama3" />
-                    <el-option label="Mistral" value="mistral" />
-                    <el-option label="Qwen 2" value="qwen2" />
-                  </el-select>
-                </el-form-item>
-              </template>
-
-              <!-- Custom -->
-              <template v-if="activeProvider === 'custom'">
-                <el-form-item label="API Key">
-                  <el-input v-model="settings.custom.apiKey" type="password" show-password />
-                </el-form-item>
-                <el-form-item label="Base URL">
-                  <el-input v-model="settings.custom.baseUrl" placeholder="https://your-api-endpoint.com/v1" />
-                </el-form-item>
-                <el-form-item label="模型">
-                  <el-input v-model="settings.custom.model" placeholder="model-name" />
-                </el-form-item>
-              </template>
-
+              <!-- 测试连接 -->
               <el-form-item>
                 <el-button 
                   type="primary" 
-                  :loading="testingProvider === activeProvider"
-                  @click="testConnection(activeProvider)"
+                  :loading="testingProvider === activeProviderId"
+                  @click="testConnection(activeProviderId)"
                 >
                   测试连接
                 </el-button>
-                <el-tag v-if="providerStatus[activeProvider]" :type="providerStatus[activeProvider] === 'success' ? 'success' : 'danger'" style="margin-left: 12px">
-                  {{ providerStatus[activeProvider] === 'success' ? '连接成功' : '连接失败' }}
+                <el-tag 
+                  v-if="providerStatus[activeProviderId]" 
+                  :type="providerStatus[activeProviderId] === 'success' ? 'success' : 'danger'" 
+                  style="margin-left: 12px"
+                >
+                  {{ providerStatus[activeProviderId] === 'success' ? '连接成功' : '连接失败' }}
                 </el-tag>
               </el-form-item>
             </el-form>
@@ -397,25 +269,15 @@
         <div class="settings-section card about-section">
           <div class="logo">
             <h1>NovelMind</h1>
-            <p class="version">版本 1.0.0</p>
+            <p class="version">版本 0.0.1</p>
           </div>
           <p class="description">
             AI 驱动的小说剧情分析与人物关系可视化工具。
-            <br>
-            灵感来源于 <a href="https://github.com/666ghj/MiroFish" target="_blank">MiroFish</a> 项目。
           </p>
           <div class="links">
             <el-button text type="primary">
               <el-icon><Link /></el-icon>
               GitHub
-            </el-button>
-            <el-button text type="primary">
-              <el-icon><Document /></el-icon>
-              文档
-            </el-button>
-            <el-button text type="primary">
-              <el-icon><ChatDotRound /></el-icon>
-              反馈
             </el-button>
           </div>
         </div>
@@ -434,13 +296,13 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Link, Document, ChatDotRound, Refresh, Delete, FolderOpened } from '@element-plus/icons-vue'
+import { Link, Refresh, Delete, FolderOpened } from '@element-plus/icons-vue'
 import { settingsApi } from '@/api'
-import { PROVIDERS } from '@/config/providers'
+import { PROVIDERS, getProviderById } from '@/config/providers'
 import ProviderAvatar from '@/components/ProviderAvatar.vue'
 
 const activeTab = ref('llm')
-const activeProvider = ref('openai') // Default to openai, no longer collapse array
+const activeProviderId = ref('openai')
 const neo4jStatus = ref('')
 const saving = ref(false)
 const testingProvider = ref('')
@@ -454,35 +316,17 @@ const logFilter = ref('ALL')
 const logContainerRef = ref<HTMLElement | null>(null)
 let refreshInterval: number | null = null
 
-const providerStatus = reactive<Record<string, string>>({
-  openai: '',
-  claude: '',
-  gemini: '',
-  deepseek: '',
-  qwen: '',
-  zhipu: '',
-  baidu: '',
-  custom: '',
-  aihubmix: '',
-  siliconflow: '',
-  openrouter: '',
-  ollama: '',
-})
+const providerStatus = reactive<Record<string, string>>({})
 
-const settings = ref({
+// Initialize settings structure
+// We will populate this with default values or loaded values
+const settings = ref<any>({
   defaultProvider: 'openai',
-  openai: { apiKey: '', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o' },
-  claude: { apiKey: '', model: 'claude-3-5-sonnet-20241022' },
-  gemini: { apiKey: '', model: 'gemini-1.5-flash' },
-  deepseek: { apiKey: '', model: 'deepseek-chat' },
-  qwen: { apiKey: '', model: 'qwen-plus' },
-  zhipu: { apiKey: '', model: 'glm-4' },
-  baidu: { apiKey: '', secretKey: '', model: 'ernie-4.0-8k' },
-  custom: { apiKey: '', baseUrl: '', model: '' },
-  aihubmix: { apiKey: '', baseUrl: 'https://aihubmix.com/v1', model: 'gpt-4o' },
-  siliconflow: { apiKey: '', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-V3' },
-  openrouter: { apiKey: '', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o' },
-  ollama: { apiKey: 'ollama', baseUrl: 'http://localhost:11434/v1', model: 'llama3' },
+  // Providers settings will be dynamic, but we can initialize known ones or rely on loading
+  // However, to make reactivity work easily for v-model, we should ensure keys exist.
+  // We'll initialize keys for all providers in PROVIDERS.
+  ...Object.fromEntries(PROVIDERS.map(p => [p.id, {}])),
+  
   neo4j: { enabled: false, uri: 'bolt://localhost:7687', user: 'neo4j', password: '' },
   theme: 'light',
   language: 'zh-CN',
@@ -491,34 +335,46 @@ const settings = ref({
   dataPath: ''
 })
 
-const getProviderName = (id: string) => PROVIDERS.find(p => p.id === id)?.name || id
+// Computed properties for dynamic form
+const activeProviderConfig = computed(() => getProviderById(activeProviderId.value))
+
+const currentProviderSettings = computed(() => {
+  if (!activeProviderId.value || !settings.value) return null
+  
+  // Ensure the object exists to avoid v-model errors
+  if (!settings.value[activeProviderId.value]) {
+    settings.value[activeProviderId.value] = {}
+  }
+  return settings.value[activeProviderId.value]
+})
 
 const setDefaultProvider = async (id: string) => {
   settings.value.defaultProvider = id
   await saveSettings()
 }
 
-const testConnection = async (provider: string) => {
-  testingProvider.value = provider
-  providerStatus[provider] = ''
+const testConnection = async (providerId: string) => {
+  testingProvider.value = providerId
+  providerStatus[providerId] = ''
   
   try {
-    const providerConfig = settings.value[provider as keyof typeof settings.value]
-    if (typeof providerConfig !== 'object' || providerConfig === null) {
+    const providerConfig = settings.value[providerId]
+    if (!providerConfig) {
       throw new Error('Invalid provider config')
     }
     
-    const result = await settingsApi.testProvider(provider, providerConfig as Record<string, unknown>)
+    // Ensure we send what backend expects. The backend likely expects keys like 'apiKey', 'model', etc.
+    const result = await settingsApi.testProvider(providerId, providerConfig)
     
     if (result.success) {
-      providerStatus[provider] = 'success'
-      ElMessage.success(`${getProviderName(provider)} 连接成功`)
+      providerStatus[providerId] = 'success'
+      ElMessage.success(`${activeProviderConfig.value?.name || providerId} 连接成功`)
     } else {
-      providerStatus[provider] = 'failed'
+      providerStatus[providerId] = 'failed'
       ElMessage.error(`连接失败: ${result.error || '未知错误'}`)
     }
   } catch (error: unknown) {
-    providerStatus[provider] = 'failed'
+    providerStatus[providerId] = 'failed'
     const message = error instanceof Error ? error.message : '连接失败'
     ElMessage.error(`连接失败: ${message}`)
   } finally {
@@ -571,10 +427,11 @@ const clearData = async () => {
       '警告',
       { type: 'warning' }
     )
-    // 调用后端清除数据
+    // Call backend to clear data (API needs to be implemented or added here)
+    // For now, simulating success
     ElMessage.success('数据已清除')
   } catch {
-    // 用户取消
+    // User cancelled
   }
 }
 
@@ -600,7 +457,6 @@ const refreshLogs = async () => {
     scrollToBottom()
   } catch (error) {
     console.error('Failed to fetch logs:', error)
-    // Don't show error message for polling to avoid spam
     if (!autoRefresh.value) ElMessage.error('获取日志失败')
   } finally {
     loadingLogs.value = false
@@ -663,15 +519,12 @@ const saveAutoRefreshState = () => {
 }
 
 const managePolling = () => {
-  // Clear existing interval
   if (refreshInterval) {
     clearInterval(refreshInterval)
     refreshInterval = null
   }
-
-  // Start interval only if auto refresh is enabled AND we are on the logs tab
   if (autoRefresh.value && activeTab.value === 'logs') {
-    refreshLogs() // Immediate fetch
+    refreshLogs()
     refreshInterval = window.setInterval(refreshLogs, 3000)
   }
 }
@@ -692,29 +545,29 @@ onMounted(async () => {
     // Load settings from backend
     const savedSettings = await settingsApi.loadSettings()
     if (savedSettings) {
-      // Deep merge settings
-      settings.value = {
-        ...settings.value,
-        ...savedSettings,
-        openai: { ...settings.value.openai, ...savedSettings.openai },
-        claude: { ...settings.value.claude, ...savedSettings.claude },
-        gemini: { ...settings.value.gemini, ...savedSettings.gemini },
-        deepseek: { ...settings.value.deepseek, ...savedSettings.deepseek },
-        qwen: { ...settings.value.qwen, ...savedSettings.qwen },
-        zhipu: { ...settings.value.zhipu, ...savedSettings.zhipu },
-        baidu: { ...settings.value.baidu, ...savedSettings.baidu },
-        custom: { ...settings.value.custom, ...savedSettings.custom },
-        aihubmix: { ...settings.value.aihubmix, ...savedSettings.aihubmix },
-        siliconflow: { ...settings.value.siliconflow, ...savedSettings.siliconflow },
-        openrouter: { ...settings.value.openrouter, ...savedSettings.openrouter },
-        ollama: { ...settings.value.ollama, ...savedSettings.ollama },
-        neo4j: { ...settings.value.neo4j, ...savedSettings.neo4j }
-      }
+      // Merge settings safely
+      // We iterate over keys to preserve structure
+      Object.keys(savedSettings).forEach(key => {
+        if (typeof savedSettings[key] === 'object' && savedSettings[key] !== null && !Array.isArray(savedSettings[key])) {
+          // If the key exists in our default settings, merge it
+          // If it's a provider key (which we initialized in PROVIDERS loop), merge it
+          if (!settings.value[key]) {
+             settings.value[key] = {}
+          }
+          settings.value[key] = { ...settings.value[key], ...savedSettings[key] }
+        } else {
+          settings.value[key] = savedSettings[key]
+        }
+      })
     }
     
     // Get data path from Electron
     if (window.electronAPI?.getPath) {
-      settings.value.dataPath = await window.electronAPI.getPath('userData')
+      const path = await window.electronAPI.getPath('userData')
+      // Only set if not already set by backend settings (unlikely for dataPath which is mostly system dep)
+      if (!settings.value.dataPath) {
+         settings.value.dataPath = path
+      }
     }
   } catch (error) {
     console.error('Failed to load settings:', error)

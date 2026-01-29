@@ -63,9 +63,11 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "resources/icons/**/*"
     ],
     "win": {
+      "icon": "resources/icons/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -83,6 +85,7 @@
       "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
     },
     "mac": {
+      "icon": "resources/icons/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -95,6 +98,7 @@
       "category": "public.app-category.productivity"
     },
     "linux": {
+      "icon": "resources/icons/icon.png",
       "target": [
         {
           "target": "AppImage",
@@ -127,6 +131,11 @@
         ]
       }
     ],
-    "afterPack": "./scripts/afterPack.js"
+    "afterPack": "./scripts/afterPack.js",
+    "publish": {
+      "provider": "github",
+      "owner": "rinchao0721",
+      "repo": "NovelMind"
+    }
   }
 }

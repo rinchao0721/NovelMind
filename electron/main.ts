@@ -2,12 +2,19 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { spawn, exec, ChildProcess } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import net from 'net'
 import { fileURLToPath } from 'url'
 import log from 'electron-log/main'
 
 // Initialize logger
 log.initialize()
 log.info('App starting...')
+
+// Disable security warnings in development
+// These warnings are useful but noisy in dev mode where 'unsafe-eval' is required by Vite
+if (process.env.VITE_DEV_SERVER_URL) {
+  process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -20,8 +27,20 @@ process.env.VITE_PUBLIC = app.isPackaged
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcess | null = null
 
-// 后端服务器端口
-const BACKEND_PORT = 5001
+// 后端服务器端口 (Dynamic)
+let BACKEND_PORT = 5001
+
+// 获取空闲端口
+const getFreePort = (): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as net.AddressInfo).port
+      server.close(() => resolve(port))
+    })
+    server.on('error', reject)
+  })
+}
 
 // 创建主窗口
 function createWindow() {
@@ -68,7 +87,16 @@ function createWindow() {
 }
 
 // 启动 Python 后端
-function startBackend() {
+async function startBackend() {
+  // Allocate a dynamic port
+  try {
+    BACKEND_PORT = await getFreePort()
+    log.info(`Allocated backend port: ${BACKEND_PORT}`)
+  } catch (e) {
+    log.error(`Failed to allocate port, falling back to 5001: ${e}`)
+    BACKEND_PORT = 5001
+  }
+
   const isDev = !!process.env.VITE_DEV_SERVER_URL
   let backendPath = ''
   let executable = ''
@@ -79,7 +107,7 @@ function startBackend() {
       APP_PORT: String(BACKEND_PORT),
       PYTHONUNBUFFERED: '1' // Ensure output is flushed immediately
     },
-    stdio: ['pipe', 'pipe', 'pipe']
+    stdio: ['pipe', 'pipe', 'pipe'] // We will pipe stdout/stderr manually
   }
 
   if (isDev) {
@@ -100,8 +128,6 @@ function startBackend() {
       spawnOptions.shell = true
     }
     
-    console.log(`[Backend] Starting in DEV mode: ${executable} ${args.join(' ')}`)
-    console.log(`[Backend] CWD: ${backendPath}`)
     log.info(`Development mode: Starting backend using ${executable} in ${backendPath}`)
   } else {
     // Production mode
@@ -133,29 +159,50 @@ function startBackend() {
   try {
     backendProcess = spawn(executable, args, spawnOptions)
 
-    backendProcess.stdout?.on('data', (data) => {
-      const msg = data.toString().trim()
-      console.log(`[Backend] ${msg}`) // Output to console for VSCode
-      log.info(`[Backend] ${msg}`)
-    })
+    // Setup dedicated logging for backend
+    const userDataPath = app.getPath('userData')
+    const logFilePath = path.join(userDataPath, 'app.log')
+    const logStream = fs.createWriteStream(logFilePath, { flags: 'a' })
+    
+    log.info(`Backend logs redirected to: ${logFilePath}`)
 
+    // Write start marker
+    const startMsg = `\n--- Backend Session Started at ${new Date().toISOString()} (Port: ${BACKEND_PORT}) ---\n`
+    logStream.write(startMsg)
+
+    // Pipe stdout/stderr to file
+    backendProcess.stdout?.pipe(logStream)
+    backendProcess.stderr?.pipe(logStream)
+
+    // Also log errors to electron-log for visibility in main log
     backendProcess.stderr?.on('data', (data) => {
       const msg = data.toString().trim()
-      console.error(`[Backend Error] ${msg}`) // Output to console for VSCode
-      log.error(`[Backend Error] ${msg}`)
+      // Optional: Filter out non-critical info messages if they appear in stderr
+      if (msg) {
+        log.debug(`[Backend Stderr] ${msg}`) 
+      }
+    })
+
+    backendProcess.stdout?.on('data', () => {
+        // Minimal console output for dev feedback if needed
+        if (isDev) {
+            // process.stdout.write(data) 
+        }
     })
 
     backendProcess.on('error', (err) => {
       const msg = `Failed to start backend: ${err.message}`
       console.error(msg)
       log.error(msg)
+      logStream.write(`[Launch Error] ${msg}\n`)
       dialog.showErrorBox('Backend Error', msg)
     })
 
     backendProcess.on('close', (code) => {
       const msg = `Backend process exited with code ${code}`
-      console.log(msg)
       log.info(msg)
+      logStream.write(`[Exit] ${msg}\n`)
+      logStream.end()
       backendProcess = null
     })
   } catch (e: any) {
@@ -240,6 +287,11 @@ function setupIpcHandlers() {
     return app.getVersion()
   })
 
+  // 获取后端端口
+  ipcMain.handle('app:getBackendPort', () => {
+    return BACKEND_PORT
+  })
+
   // 打开日志文件夹 (Enhanced)
   ipcMain.handle('log:openFolder', () => {
     const mainLogPath = log.transports.file.getFile().path
@@ -284,9 +336,9 @@ function setupIpcHandlers() {
 }
 
 // 应用事件处理
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupIpcHandlers()
-  startBackend()
+  await startBackend()
   createWindow()
 
   app.on('activate', () => {

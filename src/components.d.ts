@@ -7,6 +7,9 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    AnalysisConfigForm: typeof import('./components/analysis/AnalysisConfigForm.vue')['default']
+    AnalysisProgress: typeof import('./components/analysis/AnalysisProgress.vue')['default']
+    AnalysisResultCard: typeof import('./components/analysis/AnalysisResultCard.vue')['default']
     CharacterCard: typeof import('./components/character/CharacterCard.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
@@ -23,6 +26,7 @@ declare module 'vue' {
     ElIcon: typeof import('element-plus/es')['ElIcon']
     ElInput: typeof import('element-plus/es')['ElInput']
     ElOption: typeof import('element-plus/es')['ElOption']
+    ElPopconfirm: typeof import('element-plus/es')['ElPopconfirm']
     ElProgress: typeof import('element-plus/es')['ElProgress']
     ElRadio: typeof import('element-plus/es')['ElRadio']
     ElRadioButton: typeof import('element-plus/es')['ElRadioButton']
@@ -32,11 +36,15 @@ declare module 'vue' {
     ElSlider: typeof import('element-plus/es')['ElSlider']
     ElStatistic: typeof import('element-plus/es')['ElStatistic']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
+    ElTable: typeof import('element-plus/es')['ElTable']
+    ElTableColumn: typeof import('element-plus/es')['ElTableColumn']
     ElTabPane: typeof import('element-plus/es')['ElTabPane']
     ElTabs: typeof import('element-plus/es')['ElTabs']
     ElTag: typeof import('element-plus/es')['ElTag']
     ElUpload: typeof import('element-plus/es')['ElUpload']
+    ExportDialog: typeof import('./components/analysis/ExportDialog.vue')['default']
     FileImport: typeof import('./components/import/FileImport.vue')['default']
+    NovelSelector: typeof import('./components/analysis/NovelSelector.vue')['default']
     ProviderAvatar: typeof import('./components/ProviderAvatar.vue')['default']
     RelationGraph: typeof import('./components/graph/RelationGraph.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

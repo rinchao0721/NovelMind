@@ -2,12 +2,13 @@
 Analysis Engine - Core analysis logic for novel processing
 """
 
+import asyncio
 import uuid
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from database.sqlite_db import get_db
 
-# from database.neo4j_db import Neo4jDB  <-- Removed
+
 from services.llm_service import LLMService
 from utils.logger import logger
 
@@ -17,7 +18,6 @@ class AnalysisEngine:
 
     def __init__(self):
         self.llm = LLMService()
-        # self.neo4j = Neo4jDB() <-- Removed
 
     async def analyze(self, novel_id: str, task_id: str, config: Dict[str, Any]) -> Dict[str, Any]:
         """Run full analysis on a novel"""
@@ -37,6 +37,15 @@ class AnalysisEngine:
             raise ValueError("No chapters found for analysis")
 
         logger.info(f"Loaded {len(chapters)} chapters for analysis")
+
+        # Clear existing analysis data to prevent accumulation
+        async with get_db() as db:
+            await db.execute("DELETE FROM characters WHERE novel_id = ?", (novel_id,))
+            await db.execute("DELETE FROM relationships WHERE novel_id = ?", (novel_id,))
+            await db.execute("DELETE FROM plot_events WHERE novel_id = ?", (novel_id,))
+            await db.execute("UPDATE chapters SET summary = NULL WHERE novel_id = ?", (novel_id,))
+            await db.commit()
+        logger.info(f"Cleared existing analysis data for novel {novel_id}")
 
         # Initialize result
         result = {
@@ -134,8 +143,8 @@ class AnalysisEngine:
         novel_id: str,
         chapters: List[Dict],
         depth: str,
-        provider: str = None,
-        model: str = None,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> List[Dict]:
         """Extract characters from novel"""
         all_characters = {}
@@ -208,8 +217,8 @@ class AnalysisEngine:
         characters: List[Dict],
         chapters: List[Dict],
         depth: str,
-        provider: str = None,
-        model: str = None,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> List[Dict]:
         """Analyze relationships between characters"""
         sample_size = {"quick": 3, "standard": 10, "deep": len(chapters)}[depth]
@@ -224,16 +233,26 @@ class AnalysisEngine:
                 characters, combined_text, provider=provider, model=model
             )
 
-            # Create name to ID mapping
-            name_to_id = {c["name"]: c["id"] for c in characters}
+            # Create name/alias to ID mapping for smarter matching
+            name_map = {}
+            for c in characters:
+                c_id = c["id"]
+                # Map full name
+                name_map[c["name"]] = c_id
+                # Map aliases
+                if "aliases" in c and isinstance(c["aliases"], list):
+                    for alias in c["aliases"]:
+                        if alias:
+                            name_map[alias] = c_id
 
             result = []
             for rel in relationships:
                 source_name = rel.get("source", "")
                 target_name = rel.get("target", "")
 
-                source_id = name_to_id.get(source_name)
-                target_id = name_to_id.get(target_name)
+                # Try to find ID by name or alias
+                source_id = name_map.get(source_name)
+                target_id = name_map.get(target_name)
 
                 if source_id and target_id:
                     rel_data = {
@@ -287,8 +306,8 @@ class AnalysisEngine:
         novel_id: str,
         chapters: List[Dict],
         depth: str,
-        provider: str = None,
-        model: str = None,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> List[Dict]:
         """Track plot developments (placeholder)"""
         # This would involve more complex analysis
@@ -301,44 +320,62 @@ class AnalysisEngine:
         novel_id: str,
         chapters: List[Dict],
         depth: str,
-        provider: str = None,
-        model: str = None,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> List[Dict]:
-        """Generate chapter summaries"""
+        """Generate chapter summaries with concurrency control"""
         summaries = []
 
         # Limit number of summaries based on depth
         max_chapters = {"quick": 5, "standard": 20, "deep": len(chapters)}[depth]
+        target_chapters = chapters[:max_chapters]
 
-        logger.info(f"Generating summaries for {len(chapters[:max_chapters])} chapters")
+        logger.info(f"Generating summaries for {len(target_chapters)} chapters")
 
-        for chapter in chapters[:max_chapters]:
-            try:
-                summary = await self.llm.generate_summary(
-                    chapter["content"], provider=provider, model=model
-                )
+        # Concurrency control
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
 
-                # Update chapter in database
-                async with get_db() as db:
-                    await db.execute(
-                        "UPDATE chapters SET summary = ? WHERE id = ?", (summary, chapter["id"])
+        async def process_chapter(chapter: Dict) -> Optional[Dict]:
+            async with semaphore:
+                try:
+                    summary = await self.llm.generate_summary(
+                        chapter["content"], provider=provider, model=model
                     )
-                    await db.commit()
 
-                summaries.append(
-                    {
+                    return {
                         "chapter_id": chapter["id"],
                         "chapter_num": chapter["chapter_num"],
                         "summary": summary,
                     }
+                except Exception as e:
+                    logger.error(
+                        f"Summary generation error for chapter {chapter['chapter_num']}: {e}"
+                    )
+                    return None
+
+        # Execute tasks concurrently
+        tasks = [process_chapter(chapter) for chapter in target_chapters]
+        results = await asyncio.gather(*tasks)
+
+        # Filter out failed results
+        valid_results = [r for r in results if r is not None]
+
+        # Sort by chapter number to maintain order
+        valid_results.sort(key=lambda x: x["chapter_num"])
+
+        # Batch update database
+        if valid_results:
+            async with get_db() as db:
+                await db.executemany(
+                    "UPDATE chapters SET summary = ? WHERE id = ?",
+                    [(r["summary"], r["chapter_id"]) for r in valid_results],
                 )
+                await db.commit()
+            logger.info(f"Batch updated summaries for {len(valid_results)} chapters")
 
-            except Exception as e:
-                logger.error(f"Summary generation error for chapter {chapter['chapter_num']}: {e}")
+        return valid_results
 
-        return summaries
-
-    async def _update_progress(self, task_id: str, progress: float, message: str = None):
+    async def _update_progress(self, task_id: str, progress: float, message: Optional[str] = None):
         """Update task progress in database"""
         async with get_db() as db:
             await db.execute(

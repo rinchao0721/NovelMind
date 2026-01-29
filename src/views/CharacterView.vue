@@ -86,6 +86,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useNovelStore } from '@/stores/novel'
 import { User, Search } from '@element-plus/icons-vue' // Added Search icon
 
@@ -93,7 +94,7 @@ const router = useRouter()
 const route = useRoute()
 const novelStore = useNovelStore()
 
-const novels = ref<any[]>([])
+const { novels } = storeToRefs(novelStore)
 const selectedNovelId = ref('')
 const searchQuery = ref('')
 const sortBy = ref('importance')
@@ -133,21 +134,31 @@ const filteredCharacters = computed(() => {
 // 监听小说选择变化
 watch(selectedNovelId, async (newId) => {
   if (newId) {
-    await novelStore.fetchNovel(newId) // Fetch novel details to get status
-    await novelStore.fetchCharacters(newId)
+    loadCharacterData(newId)
   }
 })
+
+const loadCharacterData = async (id: string) => {
+    try {
+        await novelStore.fetchNovel(id) // Sync status
+        await novelStore.fetchCharacters(id) // Force fetch characters
+    } catch (e) {
+        console.error("Failed to load character data", e)
+    }
+}
 
 const goToAnalysis = () => {
   router.push(`/analysis?id=${selectedNovelId.value}`)
 }
 
 onMounted(async () => {
-  novels.value = await novelStore.fetchNovels()
+  await novelStore.fetchNovels()
   
   const id = route.query.id as string
   if (id) {
     selectedNovelId.value = id
+    // Explicitly load data on mount, don't rely solely on watch
+    await loadCharacterData(id)
   }
 })
 </script>

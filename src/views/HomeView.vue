@@ -24,50 +24,115 @@
       </div>
     </div>
 
-    <!-- 最近项目 -->
+    <!-- 最近项目与文件管理 -->
     <div class="recent-section">
-      <div class="section-header">
-        <h3>最近项目</h3>
+      <el-tabs v-model="activeTab" class="project-tabs">
+        <!-- 标签页 1: 项目视图 (网格卡片) -->
+        <el-tab-pane label="项目视图" name="grid">
+          <div v-if="recentNovels.length === 0" class="empty-state">
+            <el-icon><Document /></el-icon>
+            <h3>暂无项目</h3>
+            <p>导入一本小说开始分析吧</p>
+            <el-button type="primary" @click="handleImport">
+              <el-icon><Upload /></el-icon>
+              导入小说
+            </el-button>
+          </div>
+
+          <div v-else class="novel-grid">
+            <div 
+              v-for="novel in recentNovels" 
+              :key="novel.id" 
+              class="novel-card"
+              @click="openNovel(novel.id)"
+            >
+              <div class="novel-cover">
+                <el-icon><Notebook /></el-icon>
+              </div>
+              <div class="novel-info">
+                <h4>{{ novel.title }}</h4>
+                <p class="novel-meta">
+                  <span>{{ novel.author || '未知作者' }}</span>
+                  <span>{{ novel.total_chapters }} 章</span>
+                </p>
+                <el-tag 
+                  :type="getStatusType(novel.analysis_status)" 
+                  size="small"
+                >
+                  {{ getStatusText(novel.analysis_status) }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <!-- 标签页 2: 文件列表 (详细表格) -->
+        <el-tab-pane label="文件列表" name="list">
+          <el-table :data="recentNovels" style="width: 100%" stripe>
+            <el-table-column prop="title" label="书名" min-width="180">
+              <template #default="{ row }">
+                <span class="novel-title-cell" @click="openNovel(row.id)">
+                  <el-icon><Document /></el-icon>
+                  {{ row.title }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="author" label="作者" width="120">
+              <template #default="{ row }">
+                {{ row.author || '未知' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="统计信息" width="180">
+              <template #default="{ row }">
+                <div class="stats-cell">
+                  <span>{{ row.total_chapters }} 章</span>
+                  <span class="divider">|</span>
+                  <span>{{ formatNumber(row.total_words) }} 字</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getStatusType(row.analysis_status)" size="small">
+                  {{ getStatusText(row.analysis_status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="导入时间" width="160">
+              <template #default="{ row }">
+                {{ formatDate(row.created_at) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="openNovel(row.id)">
+                  分析
+                </el-button>
+                <el-button link type="primary" size="small" @click="router.push(`/graph?id=${row.id}`)">
+                  图谱
+                </el-button>
+                <el-popconfirm 
+                  title="确定删除这本书吗？" 
+                  confirm-button-text="删除" 
+                  cancel-button-text="取消"
+                  @confirm="handleDelete(row.id)"
+                >
+                  <template #reference>
+                    <el-button link type="danger" size="small">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+
+      <!-- 标签栏右侧操作按钮 -->
+      <div class="tabs-extra">
         <el-button type="primary" text @click="handleImport">
           <el-icon><Plus /></el-icon>
           导入新小说
         </el-button>
-      </div>
-
-      <div v-if="recentNovels.length === 0" class="empty-state">
-        <el-icon><Document /></el-icon>
-        <h3>暂无项目</h3>
-        <p>导入一本小说开始分析吧</p>
-        <el-button type="primary" @click="handleImport">
-          <el-icon><Upload /></el-icon>
-          导入小说
-        </el-button>
-      </div>
-
-      <div v-else class="novel-grid">
-        <div 
-          v-for="novel in recentNovels" 
-          :key="novel.id" 
-          class="novel-card"
-          @click="openNovel(novel.id)"
-        >
-          <div class="novel-cover">
-            <el-icon><Notebook /></el-icon>
-          </div>
-          <div class="novel-info">
-            <h4>{{ novel.title }}</h4>
-            <p class="novel-meta">
-              <span>{{ novel.author || '未知作者' }}</span>
-              <span>{{ novel.total_chapters }} 章</span>
-            </p>
-            <el-tag 
-              :type="getStatusType(novel.analysis_status)" 
-              size="small"
-            >
-              {{ getStatusText(novel.analysis_status) }}
-            </el-tag>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -114,6 +179,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import type { UploadFile, UploadInstance } from 'element-plus'
 import { useNovelStore } from '@/stores/novel'
@@ -122,13 +188,39 @@ const router = useRouter()
 const novelStore = useNovelStore()
 
 const uploadRef = ref<UploadInstance>()
-const recentNovels = ref<any[]>([])
+const { novels: recentNovels } = storeToRefs(novelStore)
+const activeTab = ref('grid') // Default active tab
 const importDialogVisible = ref(false)
 const selectedFile = ref<File | null>(null)
 const importing = ref(false)
 
 const handleImport = () => {
   importDialogVisible.value = true
+}
+
+const handleDelete = async (id: string) => {
+  try {
+    await novelStore.deleteNovel(id)
+    ElMessage.success('删除成功')
+    await loadRecentNovels()
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除失败')
+  }
+}
+
+const formatNumber = (num: number) => {
+  return num ? num.toLocaleString() : '0'
+}
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 const handleFileChange = (file: UploadFile) => {
@@ -178,7 +270,7 @@ const getStatusText = (status: string) => {
 
 const loadRecentNovels = async () => {
   try {
-    recentNovels.value = await novelStore.fetchNovels()
+    await novelStore.fetchNovels()
   } catch (error) {
     console.error('Failed to load novels:', error)
   }
@@ -236,17 +328,53 @@ onMounted(() => {
 }
 
 .recent-section {
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
+  position: relative; // For tabs-extra positioning
 
-    h3 {
-      font-size: 18px;
-      color: var(--text-color);
-      margin: 0;
+  .project-tabs {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    min-height: 400px; // Ensure height consistency
+
+    :deep(.el-tabs__nav-wrap::after) {
+      height: 1px;
+      background-color: var(--border-color);
     }
+    
+    :deep(.el-tabs__header) {
+      margin-bottom: 24px;
+    }
+  }
+
+  .tabs-extra {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 10;
+  }
+}
+
+.novel-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--primary-color);
+  font-weight: 500;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.stats-cell {
+  color: var(--text-color-secondary);
+  font-size: 13px;
+  
+  .divider {
+    margin: 0 6px;
+    color: var(--border-color);
   }
 }
 

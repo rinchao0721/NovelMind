@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 应用信息
   getPath: (name: string) => ipcRenderer.invoke('app:getPath', name),
   getVersion: () => ipcRenderer.invoke('app:getVersion'),
+  getBackendPort: () => ipcRenderer.invoke('app:getBackendPort'),
   openLogFolder: () => ipcRenderer.invoke('log:openFolder'),
 
   // 窗口控制
@@ -32,6 +33,7 @@ declare global {
       saveFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) => Promise<Electron.SaveDialogReturnValue>
       getPath: (name: string) => Promise<string>
       getVersion: () => Promise<string>
+      getBackendPort: () => Promise<number>
       openLogFolder: () => Promise<string>
       minimize: () => void
       maximize: () => void

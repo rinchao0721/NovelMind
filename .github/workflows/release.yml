@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: uv sync --frozen
+        
+      - name: Install Frontend Dependencies
+        run: npm ci
+        
+      # Build Python Backend Executable
+      - name: Build Backend Executable
+        env:
+          USE_UV: true 
+        run: npm run build:backend
+        
+      # Build & Publish Electron App
+      - name: Build & Publish Electron App
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        run: |
+          if [ "${{ matrix.os }}" == "windows-latest" ]; then
+            npm run build:win
+          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
+            npm run build:mac
+          else
+            npm run build:linux
+          fi
+        shell: bash

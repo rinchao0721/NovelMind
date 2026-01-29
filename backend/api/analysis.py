@@ -209,9 +209,17 @@ async def get_analysis_result(task_id: str):
         chapter_row = await chapter_cursor.fetchone()
         chapter_count = chapter_row[0] if chapter_row else 0
 
-        # For relationships, we'd query Neo4j in production
-        relationship_count = 0
-        plot_count = 0
+        rel_cursor = await db.execute(
+            "SELECT COUNT(*) FROM relationships WHERE novel_id = ?", (novel_id,)
+        )
+        rel_row = await rel_cursor.fetchone()
+        relationship_count = rel_row[0] if rel_row else 0
+
+        plot_cursor = await db.execute(
+            "SELECT COUNT(*) FROM plot_events WHERE novel_id = ?", (novel_id,)
+        )
+        plot_row = await plot_cursor.fetchone()
+        plot_count = plot_row[0] if plot_row else 0
 
         return AnalysisResultResponse(
             task_id=task_id,
@@ -263,9 +271,17 @@ async def get_novel_analysis_results(novel_id: str):
         chapter_row = await chapter_cursor.fetchone()
         chapter_count = chapter_row[0] if chapter_row else 0
 
-        # For relationships, we'd query Neo4j in production
-        relationship_count = 0
-        plot_count = 0
+        rel_cursor = await db.execute(
+            "SELECT COUNT(*) FROM relationships WHERE novel_id = ?", (novel_id,)
+        )
+        rel_row = await rel_cursor.fetchone()
+        relationship_count = rel_row[0] if rel_row else 0
+
+        plot_cursor = await db.execute(
+            "SELECT COUNT(*) FROM plot_events WHERE novel_id = ?", (novel_id,)
+        )
+        plot_row = await plot_cursor.fetchone()
+        plot_count = plot_row[0] if plot_row else 0
 
         return AnalysisResultResponse(
             task_id=task_id,
@@ -275,6 +291,32 @@ async def get_novel_analysis_results(novel_id: str):
             plot_count=plot_count,
             chapter_count=chapter_count,
         )
+
+
+@router.delete("/{novel_id}/results")
+async def delete_analysis_results(novel_id: str):
+    """Delete all analysis results for a novel"""
+    async with get_db() as db:
+        # Check if novel exists
+        cursor = await db.execute("SELECT id FROM novels WHERE id = ?", (novel_id,))
+        if not await cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Novel not found")
+
+        # Delete related data
+        await db.execute("DELETE FROM characters WHERE novel_id = ?", (novel_id,))
+        await db.execute("DELETE FROM relationships WHERE novel_id = ?", (novel_id,))
+        await db.execute("DELETE FROM plot_events WHERE novel_id = ?", (novel_id,))
+        await db.execute("UPDATE chapters SET summary = NULL WHERE novel_id = ?", (novel_id,))
+        await db.execute("DELETE FROM analysis_tasks WHERE novel_id = ?", (novel_id,))
+
+        # Reset novel status
+        await db.execute(
+            "UPDATE novels SET analysis_status = 'pending', updated_at = ? WHERE id = ?",
+            (datetime.now().isoformat(), novel_id),
+        )
+        await db.commit()
+
+    return {"message": "Analysis results deleted successfully"}
 
 
 @router.post("/{task_id}/cancel")

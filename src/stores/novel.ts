@@ -57,6 +57,13 @@ export const useNovelStore = defineStore('novel', () => {
     try {
       const data = await novelsApi.get(id)
       currentNovel.value = data
+      
+      // Sync with list
+      const index = novels.value.findIndex(n => n.id === id)
+      if (index !== -1) {
+        novels.value[index] = data
+      }
+      
       return currentNovel.value!
     } catch (error) {
       console.error('Failed to fetch novel:', error)
@@ -84,20 +91,7 @@ export const useNovelStore = defineStore('novel', () => {
       return data
     } catch (error) {
       console.error('Failed to import novel:', error)
-      // 模拟导入
-      const novel: Novel = {
-        id: Date.now().toString(),
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        author: '未知',
-        file_path: file.name,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        analysis_status: 'pending',
-        total_chapters: 0,
-        total_words: 0
-      }
-      novels.value.unshift(novel)
-      return novel
+      throw error
     } finally {
       loading.value = false
     }
@@ -208,6 +202,27 @@ export const useNovelStore = defineStore('novel', () => {
     }
   }
 
+  // 重置分析结果
+  const resetAnalysis = async (novelId: string) => {
+    try {
+      await analysisApi.deleteResults(novelId)
+      
+      // Update local state
+      const novel = novels.value.find(n => n.id === novelId)
+      if (novel) {
+        novel.analysis_status = 'pending'
+      }
+      if (currentNovel.value && currentNovel.value.id === novelId) {
+        currentNovel.value.analysis_status = 'pending'
+      }
+      
+      clearAnalysisState()
+    } catch (error) {
+      console.error('Failed to reset analysis:', error)
+      throw error
+    }
+  }
+
   // 设置分析进度
   const setAnalysisProgress = (progress: number, text: string = '') => {
     analysisProgress.value = progress
@@ -277,6 +292,7 @@ export const useNovelStore = defineStore('novel', () => {
     startAnalysis,
     getAnalysisStatus,
     getAnalysisResults,
+    resetAnalysis,
     // Analysis methods
     setAnalysisProgress,
     addAnalysisLog,

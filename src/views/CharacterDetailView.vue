@@ -7,7 +7,7 @@
       </el-button>
     </div>
 
-    <div class="detail-content">
+    <div v-if="character" class="detail-content">
       <!-- 基本信息卡片 -->
       <div class="profile-card card">
         <div class="avatar">
@@ -64,6 +64,7 @@
               v-for="rel in character.relationships" 
               :key="rel.id"
               class="relation-item"
+              @click="navigateToCharacter(rel.target_id)"
             >
               <span class="name">{{ rel.target_name }}</span>
               <el-tag :type="getRelationType(rel.type)" size="small">
@@ -79,53 +80,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { charactersApi, relationshipsApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 
-// 模拟数据
-const character = ref({
-  id: '1',
-  name: '贾宝玉',
-  aliases: ['宝二爷', '怡红公子', '绛洞花主'],
-  description: '贾府荣国公贾代善之孙、荣国府贾政之子。因衔玉而诞，系贾府玉字辈嫡孙。他是贾母的心尖宝贝，从小在女儿堆中长大，对女性有着独特的尊重和怜惜态度。',
-  personality: '性格叛逆、多愁善感、温柔体贴。厌恶封建仕途，不喜读书应举。对待身边的女性充满关爱，认为"女儿是水做的骨肉，男人是泥做的骨肉"。',
-  first_appearance: 1,
-  importance_score: 1.0,
-  appearance_count: 120,
-  relationships: [
-    {
-      id: '1',
-      target_name: '林黛玉',
-      type: 'lover',
-      type_label: '恋人',
-      description: '青梅竹马、两情相悦，但最终未能在一起。'
-    },
-    {
-      id: '2',
-      target_name: '薛宝钗',
-      type: 'spouse',
-      type_label: '妻子',
-      description: '金玉良缘，最终成婚，但宝玉心中始终念念不忘黛玉。'
-    },
-    {
-      id: '3',
-      target_name: '贾母',
-      type: 'family',
-      type_label: '祖母',
-      description: '贾母最疼爱的孙子，从小娇生惯养。'
-    },
-    {
-      id: '4',
-      target_name: '袭人',
-      type: 'servant',
-      type_label: '贴身丫鬟',
-      description: '怡红院首席大丫鬟，对宝玉照顾有加。'
-    }
-  ]
-})
+const character = ref<any>(null)
+const loading = ref(true)
 
 const getRelationType = (type: string): 'success' | 'warning' | 'info' | 'primary' | 'danger' => {
   const map: Record<string, 'success' | 'warning' | 'info' | 'primary' | 'danger'> = {
@@ -139,10 +102,57 @@ const getRelationType = (type: string): 'success' | 'warning' | 'info' | 'primar
   return map[type] || 'info'
 }
 
+const loadCharacter = async () => {
+  const id = route.params.id as string
+  if (!id) return
+
+  loading.value = true
+  try {
+    // 获取人物基本信息
+    const charData = await charactersApi.get(id)
+    
+    // 获取所有关系，筛选出与该人物相关的
+    const allRelations = await relationshipsApi.list(charData.novel_id)
+    const related = allRelations
+      .filter((r: any) => r.source_id === id || r.target_id === id)
+      .map((r: any) => {
+        const isSource = r.source_id === id
+        return {
+          id: r.id,
+          target_id: isSource ? r.target_id : r.source_id,
+          target_name: isSource ? r.target_name : r.source_name,
+          type: r.type,
+          type_label: r.type, // 后端若未返回中文标签，可在此映射
+          description: r.description
+        }
+      })
+
+    character.value = {
+      ...charData,
+      appearance_count: 0, // 暂无数据
+      relationships: related
+    }
+  } catch (error) {
+    console.error('Failed to load character:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const navigateToCharacter = (id: string) => {
+  if (id) {
+    router.push(`/characters/${id}`)
+  }
+}
+
+watch(() => route.params.id, (newId) => {
+  if (newId) {
+    loadCharacter()
+  }
+})
+
 onMounted(() => {
-  const id = route.params.id
-  // 实际项目中从后端加载数据
-  console.log('Loading character:', id)
+  loadCharacter()
 })
 </script>
 
@@ -230,6 +240,12 @@ onMounted(() => {
       padding: 12px;
       background: var(--hover-bg);
       border-radius: var(--radius);
+      cursor: pointer;
+      transition: background-color 0.2s;
+
+      &:hover {
+        background-color: var(--border-color);
+      }
 
       .name {
         font-weight: 600;

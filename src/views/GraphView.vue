@@ -304,8 +304,11 @@ const updateGraph = () => {
     legend: {
       data: categories.map(c => c.name),
       orient: 'vertical',
-      right: 220,
-      top: 20
+      right: 10,
+      top: 10,
+      backgroundColor: 'rgba(255, 255, 255, 0.7)',
+      borderRadius: 4,
+      padding: 6
     },
     series: [{
       type: 'graph',

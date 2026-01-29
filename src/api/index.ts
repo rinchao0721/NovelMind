@@ -1,12 +1,19 @@
 import axios from 'axios'
 
+// Initial base URL - will be updated by setApiBaseUrl
 const api = axios.create({
-  baseURL: import.meta.env.DEV ? 'http://localhost:5001' : '',
+  baseURL: 'http://localhost:5001',
   timeout: 60000,
   headers: {
     'Content-Type': 'application/json'
   }
 })
+
+// Function to update the base URL dynamically
+export const setApiBaseUrl = (port: number) => {
+  api.defaults.baseURL = `http://localhost:${port}`
+  console.log(`[API] Base URL updated to: ${api.defaults.baseURL}`)
+}
 
 // 请求拦截器
 api.interceptors.request.use(
@@ -144,6 +151,12 @@ export const analysisApi = {
   async getResults(novelId: string) {
     const response = await api.get(`/api/analysis/${novelId}/results`)
     return response.data
+  },
+
+  // Delete analysis results
+  async deleteResults(novelId: string) {
+    const response = await api.delete(`/api/analysis/${novelId}/results`)
+    return response.data
   }
 }
 
@@ -151,19 +164,19 @@ export const analysisApi = {
 export const charactersApi = {
   // Get all characters for a novel
   async list(novelId: string) {
-    const response = await api.get(`/api/characters/${novelId}`)
+    const response = await api.get('/api/characters', { params: { novel_id: novelId } })
     return response.data
   },
 
   // Get character by ID
-  async get(novelId: string, characterId: string) {
-    const response = await api.get(`/api/characters/${novelId}/${characterId}`)
+  async get(characterId: string) {
+    const response = await api.get(`/api/characters/${characterId}`)
     return response.data
   },
 
   // Update character
-  async update(novelId: string, characterId: string, data: Record<string, unknown>) {
-    const response = await api.put(`/api/characters/${novelId}/${characterId}`, data)
+  async update(characterId: string, data: Record<string, unknown>) {
+    const response = await api.put(`/api/characters/${characterId}`, data)
     return response.data
   }
 }
