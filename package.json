@@ -1,6 +1,6 @@
 {
   "name": "novelmind",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered novel plot analysis and character relationship visualization tool",
   "main": "dist-electron/main.js",
   "author": "NovelMind Team",
@@ -74,15 +74,8 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
-      ],
-      "artifactName": "${productName}-${version}-${os}-${arch}-setup.${ext}"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -100,7 +93,7 @@
     "extraResources": [
       {
         "from": "backend/dist/novelmind",
-        "to": "backend",
+        "to": "backend/novelmind",
         "filter": [
           "**/*"
         ]

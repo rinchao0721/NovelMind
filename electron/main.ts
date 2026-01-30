@@ -124,13 +124,37 @@ async function startBackend() {
   } else {
     // Production mode
     const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(__dirname, '../')
-    backendPath = path.join(resourcesPath, 'backend')
+    backendPath = path.join(resourcesPath, 'backend', 'novelmind')
 
     // Executable name based on OS (created by PyInstaller)
     const exeName = process.platform === 'win32' ? 'novelmind.exe' : 'novelmind'
-    // Since we copy 'backend/dist/novelmind' contents to 'resources/backend', 
-    // the executable is directly inside backendPath
     const bundledExe = path.join(backendPath, exeName)
+    const internalPath = path.join(backendPath, '_internal')
+
+    // Detailed debug logging for production
+    log.info(`=== Backend Path Debug (Production) ===`)
+    log.info(`Resources path: ${resourcesPath}`)
+    log.info(`Backend path: ${backendPath}`)
+    log.info(`Exe path: ${bundledExe}`)
+    log.info(`Exe exists: ${fs.existsSync(bundledExe)}`)
+    log.info(`_internal exists: ${fs.existsSync(internalPath)}`)
+    
+    // List backend folder contents for debugging
+    if (fs.existsSync(path.join(resourcesPath, 'backend'))) {
+      try {
+        const backendFiles = fs.readdirSync(path.join(resourcesPath, 'backend'))
+        log.info(`Backend folder contents: ${backendFiles.join(', ')}`)
+        
+        if (fs.existsSync(backendPath)) {
+          const novelmindFiles = fs.readdirSync(backendPath)
+          log.info(`Novelmind folder contents: ${novelmindFiles.join(', ')}`)
+        }
+      } catch (e: any) {
+        log.error(`Failed to list backend files: ${e.message}`)
+      }
+    } else {
+      log.error(`Backend folder not found at: ${path.join(resourcesPath, 'backend')}`)
+    }
 
     if (fs.existsSync(bundledExe)) {
       executable = bundledExe
@@ -139,6 +163,7 @@ async function startBackend() {
     } else {
       // Fallback to python script (legacy)
       log.warn('[Backend] Bundled executable not found, falling back to python script')
+      log.warn('[Backend] This fallback likely will not work in packaged app')
       executable = process.platform === 'win32' ? 'python' : 'python3'
       args = ['main.py']
     }
