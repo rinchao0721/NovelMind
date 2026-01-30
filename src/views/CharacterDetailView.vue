@@ -76,7 +76,6 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { charactersApi, relationshipsApi } from '@/api'
-import { getRelationType, getRelationLabel } from '@/utils/relations'
 import type { Character, Relationship } from '@/types'
 // 导入公共资源
 import BaseCard from '@/components/common/BaseCard.vue'

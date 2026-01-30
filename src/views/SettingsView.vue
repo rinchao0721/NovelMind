@@ -40,7 +40,7 @@
           <div class="about-section">
             <div class="logo">
               <h1>NovelMind</h1>
-              <p class="version">版本 0.0.1</p>
+              <p class="version">版本 0.1.0</p>
             </div>
             <p class="description">
               AI 驱动的小说剧情分析与人物关系可视化工具。
@@ -193,12 +193,13 @@ onMounted(async () => {
   try {
     const savedSettings = await settingsApi.loadSettings()
     if (savedSettings) {
-      Object.keys(savedSettings).forEach(key => {
+      Object.keys(savedSettings).forEach(k => {
+        const key = k as keyof Settings
         if (typeof savedSettings[key] === 'object' && savedSettings[key] !== null && !Array.isArray(savedSettings[key])) {
-          if (!settings.value[key]) settings.value[key] = {}
-          settings.value[key] = { ...settings.value[key], ...savedSettings[key] }
+          if (!settings.value[key]) (settings.value as any)[key] = {}
+          settings.value[key] = { ...(settings.value[key] as any), ...(savedSettings[key] as any) }
         } else {
-          settings.value[key] = savedSettings[key]
+          (settings.value as any)[key] = savedSettings[key]
         }
       })
     }

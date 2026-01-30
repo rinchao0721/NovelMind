@@ -58,7 +58,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useNovelStore } from '@/stores/novel'
 import { useAnalysisStore } from '@/stores/analysis'
 
 import NovelSelector from '@/components/analysis/NovelSelector.vue'
@@ -74,7 +73,6 @@ import { useNovelSelection } from '@/composables/useNovelSelection'
 import type { AnalysisConfig } from '@/types'
 
 const router = useRouter()
-const novelStore = useNovelStore()
 const analysisStore = useAnalysisStore()
 
 // State
@@ -105,23 +103,10 @@ const {
 // Logic
 const loadAnalysisResult = async () => {
   try {
-    const result = await analysisStore.getAnalysisResult(selectedNovelId.value)
+    await analysisStore.getAnalysisResult(selectedNovelId.value)
     // The result from store is already formatted
   } catch (error) {
     console.error('Failed to load analysis result:', error)
-    if (currentNovel.value?.analysis_status === 'completed') {
-        // Fallback or keep as is, consistent with original logic handling
-        analysisStore.analysisResult = {
-          task_id: 'fallback',
-          novel_id: selectedNovelId.value,
-          character_count: 28,
-          relationship_count: 45,
-          plot_count: 12,
-          chapter_count: currentNovel.value?.total_chapters || 0,
-          characters: [],
-          relationships: []
-        }
-    }
   }
 }
 

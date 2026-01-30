@@ -3,28 +3,28 @@
     <h3>分析结果</h3>
     <el-row :gutter="20">
       <el-col :span="6">
-        <el-statistic title="识别人物" :value="result.characterCount">
+        <el-statistic title="识别人物" :value="result.character_count">
           <template #suffix>
             <span class="stat-suffix">人</span>
           </template>
         </el-statistic>
       </el-col>
       <el-col :span="6">
-        <el-statistic title="人物关系" :value="result.relationshipCount">
+        <el-statistic title="人物关系" :value="result.relationship_count">
           <template #suffix>
             <span class="stat-suffix">条</span>
           </template>
         </el-statistic>
       </el-col>
       <el-col :span="6">
-        <el-statistic title="主要情节" :value="result.plotCount">
+        <el-statistic title="主要情节" :value="result.plot_count">
           <template #suffix>
             <span class="stat-suffix">个</span>
           </template>
         </el-statistic>
       </el-col>
       <el-col :span="6">
-        <el-statistic title="分析章节" :value="result.chapterCount">
+        <el-statistic title="分析章节" :value="result.chapter_count">
           <template #suffix>
             <span class="stat-suffix">章</span>
           </template>
@@ -76,15 +76,11 @@
 <script setup lang="ts">
 import { PropType } from 'vue'
 import { Share, User, Timer, Download, Delete, RefreshRight } from '@element-plus/icons-vue'
+import type { AnalysisResult } from '@/types'
 
 defineProps({
   result: {
-    type: Object as PropType<{
-      characterCount: number;
-      relationshipCount: number;
-      plotCount: number;
-      chapterCount: number;
-    }>,
+    type: Object as PropType<AnalysisResult>,
     required: true
   }
 })

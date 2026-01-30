@@ -89,7 +89,7 @@ const novelStore = useNovelStore()
 const { novels, currentNovel, selectedNovelId, handleNovelChange } = useNovelSelection()
 const chartRef = ref<HTMLElement>()
 // 启用自动 resize
-const { setOption, getInstance, resize, initChart: echartsInit } = useECharts(chartRef, undefined, {
+const { setOption, getInstance, initChart: echartsInit } = useECharts(chartRef, undefined, {
   autoResize: true
 })
 

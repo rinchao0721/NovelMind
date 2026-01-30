@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # App settings
     APP_NAME: str = "NovelMind"
-    APP_VERSION: str = "0.0.1"
+    APP_VERSION: str = "0.1.0"
     APP_PORT: int = 5001
     APP_DEBUG: bool = False
     APP_SECRET_KEY: str = "your-secret-key-change-in-production"

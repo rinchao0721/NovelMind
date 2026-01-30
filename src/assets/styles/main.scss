@@ -13,6 +13,7 @@
 
   // 背景色
   --bg-color: #f5f7fa;
+  --bg-color-rgb: 245, 247, 250;
   --sidebar-bg: #ffffff;
   --card-bg: #ffffff;
   --hover-bg: #f0f2f5;
@@ -43,6 +44,7 @@
 // 暗色主题
 html.dark {
   --bg-color: #141414;
+  --bg-color-rgb: 20, 20, 20;
   --sidebar-bg: #1d1d1d;
   --card-bg: #1d1d1d;
   --hover-bg: #262626;

@@ -88,15 +88,6 @@ function createWindow() {
 
 // 启动 Python 后端
 async function startBackend() {
-  // Allocate a dynamic port
-  try {
-    BACKEND_PORT = await getFreePort()
-    log.info(`Allocated backend port: ${BACKEND_PORT}`)
-  } catch (e) {
-    log.error(`Failed to allocate port, falling back to 5001: ${e}`)
-    BACKEND_PORT = 5001
-  }
-
   const isDev = !!process.env.VITE_DEV_SERVER_URL
   let backendPath = ''
   let executable = ''
@@ -107,7 +98,8 @@ async function startBackend() {
       APP_PORT: String(BACKEND_PORT),
       PYTHONUNBUFFERED: '1' // Ensure output is flushed immediately
     },
-    stdio: ['pipe', 'pipe', 'pipe'] // We will pipe stdout/stderr manually
+    stdio: ['pipe', 'pipe', 'pipe'], // We will pipe stdout/stderr manually
+    windowsHide: true // 💡 隐藏控制台窗口
   }
 
   if (isDev) {
@@ -338,7 +330,20 @@ function setupIpcHandlers() {
 // 应用事件处理
 app.whenReady().then(async () => {
   setupIpcHandlers()
-  await startBackend()
+  
+  // 1. 立即分配端口 (极快)
+  try {
+    BACKEND_PORT = await getFreePort()
+    log.info(`Allocated backend port: ${BACKEND_PORT}`)
+  } catch (e) {
+    log.error(`Failed to allocate port, falling back to 5001: ${e}`)
+    BACKEND_PORT = 5001
+  }
+
+  // 2. 异步启动后端 (不阻塞 UI)
+  startBackend()
+  
+  // 3. 立即创建窗口 (秒开)
   createWindow()
 
   app.on('activate', () => {

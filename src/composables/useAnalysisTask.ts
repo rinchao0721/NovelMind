@@ -2,7 +2,8 @@ import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useNovelStore } from '@/stores/novel'
 import { useAnalysisStore } from '@/stores/analysis'
-import type { Novel, AnalysisTask, AnalysisConfig } from '@/types'
+import type { Novel, AnalysisConfig } from '@/types'
+import { storeToRefs } from 'pinia'
 
 export function useAnalysisTask() {
 

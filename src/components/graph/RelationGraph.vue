@@ -118,9 +118,9 @@ const initChart = () => {
   // Event handlers
   chart.on('click', (params: echarts.ECElementEvent) => {
     if (params.dataType === 'node') {
-      emit('node-click', params.data)
+      emit('node-click', params.data as GraphNode)
     } else if (params.dataType === 'edge') {
-      emit('link-click', params.data)
+      emit('link-click', params.data as GraphLink)
     }
   })
 }

@@ -16,50 +16,21 @@ exports.default = async function(context) {
   const backendPath = path.join(appOutDir, 'resources', 'backend');
   
   if (!fs.existsSync(backendPath)) {
-    console.log('Backend directory not found, skipping Python setup');
+    console.log('Backend directory not found, skipping setup');
     return;
   }
   
-  // Create a startup script that handles Python environment
-  if (platform === 'windows') {
-    // Create a batch file to check/install Python dependencies
-    const setupScript = `@echo off
-echo Setting up NovelMind backend...
-
-REM Check if uv is available
-where uv >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    echo Using uv to manage dependencies...
-    cd /d "%~dp0"
-    uv sync
-    exit /b 0
-)
-
-REM Fallback to pip
-echo Installing dependencies with pip...
-python -m pip install -r requirements.txt
-exit /b 0
-`;
-    fs.writeFileSync(path.join(backendPath, 'setup.bat'), setupScript);
+  // Create data directory if it doesn't exist (to ensure backend can write)
+  const dataPath = path.join(backendPath, 'data');
+  if (!fs.existsSync(dataPath)) {
+    fs.mkdirSync(dataPath, { recursive: true });
+    console.log('Created backend/data directory');
   }
-  
-  // Create requirements.txt from pyproject.toml for fallback
-  const pyprojectPath = path.join(backendPath, 'pyproject.toml');
-  if (fs.existsSync(pyprojectPath)) {
-    const pyproject = fs.readFileSync(pyprojectPath, 'utf8');
-    
-    // Extract dependencies (simplified parsing)
-    const depsMatch = pyproject.match(/dependencies\s*=\s*\[([\s\S]*?)\]/);
-    if (depsMatch) {
-      const deps = depsMatch[1]
-        .split('\n')
-        .map(line => line.trim().replace(/[",]/g, ''))
-        .filter(line => line && !line.startsWith('#'));
-      
-      const requirementsPath = path.join(backendPath, 'requirements.txt');
-      fs.writeFileSync(requirementsPath, deps.join('\n'));
-      console.log('Created requirements.txt from pyproject.toml');
-    }
+
+  // Create an empty app.log to ensure the file exists
+  const logFile = path.join(dataPath, 'app.log');
+  if (!fs.existsSync(logFile)) {
+    fs.writeFileSync(logFile, '');
   }
   
   console.log('AfterPack completed');

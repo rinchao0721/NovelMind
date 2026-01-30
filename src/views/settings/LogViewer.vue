@@ -2,7 +2,7 @@
   <div class="log-viewer-container">
     <div class="log-toolbar">
       <div class="left">
-        <el-button type="primary" @click="refreshLogs" :loading="loading">
+        <el-button type="primary" @click="() => refreshLogs()" :loading="loading">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-switch v-model="autoRefresh" active-text="自动刷新" />

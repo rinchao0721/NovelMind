@@ -1,6 +1,6 @@
 {
   "name": "novelmind",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "AI-powered novel plot analysis and character relationship visualization tool",
   "main": "dist-electron/main.js",
   "author": "NovelMind Team",
@@ -81,14 +81,20 @@
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-${os}-${arch}-setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
+      "allowElevation": true,
+      "installerIcon": "resources/icons/icon.ico",
+      "uninstallerIcon": "resources/icons/icon.ico",
+      "installerHeaderIcon": "resources/icons/icon.ico",
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "NovelMind"
+      "shortcutName": "NovelMind",
+      "runAfterFinish": true,
+      "perMachine": true
     },
     "extraResources": [
       {

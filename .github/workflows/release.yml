@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '发布版本号 (例如 v0.1.0)'
+        required: true
+        default: 'v0.1.0'
 
 permissions:
   contents: write
@@ -12,9 +18,20 @@ jobs:
   build-release:
     name: Build Windows
     runs-on: windows-latest
+    # 限制手动发布只能在 main 分支运行
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整历史以支持打标签
+
+      - name: Create Git Tag (Manual Dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git tag ${{ github.event.inputs.tag_name }}
+          git push origin ${{ github.event.inputs.tag_name }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -51,5 +68,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
           # Increase timeout for large file uploads (20 mins)
           ELECTRON_BUILDER_HTTP_TIMEOUT: 1200000
-        run: npm run build:win
+        # 使用 publish=always 确保即使没有预先存在的 Release 也会创建草稿
+        run: npx electron-builder --win --publish always -c.publish.releaseType=draft
         shell: bash

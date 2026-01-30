@@ -46,21 +46,52 @@
             <component :is="Component" />
           </transition>
         </router-view>
+
+        <!-- 💡 后端加载遮罩 -->
+        <transition name="fade">
+          <div v-if="!isBackendReady" class="backend-loading-overlay">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <p>正在启动分析引擎...</p>
+            <p class="retry-hint" v-if="loadingTime > 5000">正在进行首次初始化，请稍候</p>
+          </div>
+        </transition>
       </main>
     </el-config-provider>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import { checkApiConnection } from '@/api'
+import { Loading } from '@element-plus/icons-vue'
 
 const isDark = ref(false)
+const isBackendReady = ref(false)
+const loadingTime = ref(0)
+let checkInterval: any = null
+let timerInterval: any = null
 
 const toggleDark = () => {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark', isDark.value)
   localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+}
+
+const startBackendCheck = () => {
+  const startTime = Date.now()
+  timerInterval = setInterval(() => {
+    loadingTime.value = Date.now() - startTime
+  }, 1000)
+
+  checkInterval = setInterval(async () => {
+    const connected = await checkApiConnection()
+    if (connected) {
+      isBackendReady.value = true
+      clearInterval(checkInterval)
+      clearInterval(timerInterval)
+    }
+  }, 1000)
 }
 
 onMounted(() => {
@@ -69,6 +100,13 @@ onMounted(() => {
     isDark.value = true
     document.documentElement.classList.add('dark')
   }
+
+  startBackendCheck()
+})
+
+onUnmounted(() => {
+  if (checkInterval) clearInterval(checkInterval)
+  if (timerInterval) clearInterval(timerInterval)
 })
 </script>
 
@@ -78,6 +116,39 @@ onMounted(() => {
   height: 100vh;
   background: var(--bg-color);
   color: var(--text-color);
+}
+
+.backend-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(var(--bg-color-rgb), 0.9);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  color: var(--text-color);
+
+  .el-icon {
+    font-size: 48px;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+  }
+
+  p {
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .retry-hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-color-secondary);
+  }
 }
 
 .app-sidebar {

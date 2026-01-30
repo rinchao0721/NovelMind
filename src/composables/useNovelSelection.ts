@@ -1,8 +1,7 @@
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel } from '@/types'
 
 export function useNovelSelection() {
   const route = useRoute()

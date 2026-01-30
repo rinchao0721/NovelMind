@@ -106,7 +106,7 @@ import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { ZoomIn, ZoomOut, FullScreen, Download } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel, GraphData, Relationship, GraphNode } from '@/types'
+import type { GraphData, Relationship, GraphNode, GraphLink } from '@/types'
 import { getRelationLabel } from '@/utils/relations'
 // 导入公共资源
 import BaseCard from '@/components/common/BaseCard.vue'
@@ -451,18 +451,21 @@ watch([importanceThreshold, visibleRelationTypes], async () => {
   :deep(.card-body) {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
     padding: 0;
+    position: relative;
   }
 
   .chart {
     flex: 1;
-    width: 100%; // 改为 100%，让 flex 自动计算
-    height: 100%; // 添加明确高度
     min-height: 500px;
-    min-width: 400px; // 添加最小宽度
+    min-width: 400px;
+  }
+
+  .empty-state {
+    flex: 1;
   }
 
   .error-text {
