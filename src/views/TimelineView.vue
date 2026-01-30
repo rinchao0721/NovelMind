@@ -1,12 +1,13 @@
 <template>
   <div class="timeline-view">
-    <div class="page-header">
-      <h2>情节时间线</h2>
-      <p>按章节展示小说情节发展与人物出场</p>
-    </div>
+    <PageHeader title="情节时间线" subtitle="按章节展示小说情节发展与人物出场" />
 
-    <div class="timeline-toolbar card">
-      <el-select v-model="selectedNovelId" placeholder="选择小说">
+    <BaseCard class="timeline-toolbar">
+      <el-select 
+        v-model="selectedNovelId" 
+        placeholder="选择小说"
+        @change="handleNovelChange"
+      >
         <el-option
           v-for="novel in novels"
           :key="novel.id"
@@ -20,18 +21,18 @@
         <el-option label="人物出场" value="character" />
         <el-option label="关系变化" value="relationship" />
       </el-select>
-    </div>
+    </BaseCard>
 
-    <div v-if="chapters.length > 0" class="timeline-content card">
-      <div ref="timelineChartRef" class="timeline-chart"></div>
-    </div>
+    <BaseCard v-if="chapters.length > 0" class="timeline-content" no-padding>
+      <div ref="chartRef" class="timeline-chart"></div>
+    </BaseCard>
 
     <!-- 章节详情 -->
     <div v-if="chapters.length > 0" class="chapter-list">
-      <div 
+      <BaseCard 
         v-for="chapter in chapters" 
         :key="chapter.id" 
-        class="chapter-item card"
+        class="chapter-item"
       >
         <div class="chapter-header">
           <h4>第 {{ chapter.chapter_num }} 章: {{ chapter.title }}</h4>
@@ -49,58 +50,105 @@
             {{ char }}
           </el-tag>
         </div>
-      </div>
+      </BaseCard>
     </div>
 
     <!-- 空状态 -->
-    <div v-if="!selectedNovelId || chapters.length === 0" class="empty-state">
-      <el-icon><Timer /></el-icon>
-      <template v-if="!selectedNovelId">
-        <h3>请选择小说</h3>
-        <p>选择上方小说以查看情节时间线</p>
-      </template>
-      <template v-else-if="currentNovel && currentNovel.analysis_status !== 'completed'">
-        <h3>尚未进行分析</h3>
-        <p>该小说还未进行情节分析</p>
-        <el-button type="primary" @click="goToAnalysis">前往分析</el-button>
-      </template>
-      <template v-else>
-        <h3>暂无时间线数据</h3>
-        <p>分析已完成，但未能提取到情节数据</p>
-      </template>
-    </div>
+    <EmptyState 
+      v-if="!selectedNovelId || chapters.length === 0"
+      type="timeline"
+      :title="!selectedNovelId ? '请选择小说' : (currentNovel?.analysis_status !== 'completed' ? '尚未进行分析' : '暂无时间线数据')"
+      :description="!selectedNovelId ? '选择上方小说以查看情节时间线' : (currentNovel?.analysis_status !== 'completed' ? '该小说还未进行情节分析' : '分析已完成，但未能提取到情节数据')"
+    >
+      <el-button 
+        v-if="selectedNovelId && currentNovel?.analysis_status !== 'completed'" 
+        type="primary" 
+        @click="router.push(`/analysis?id=${selectedNovelId}`)"
+      >
+        前往分析
+      </el-button>
+    </EmptyState>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, onMounted, watch, computed, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { useNovelStore } from '@/stores/novel'
-import { Timer } from '@element-plus/icons-vue'
+// 导入公共资源
+import BaseCard from '@/components/common/BaseCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
+import { useECharts } from '@/composables/useECharts'
+import { useNovelSelection } from '@/composables/useNovelSelection'
 
 const router = useRouter()
-const route = useRoute()
 const novelStore = useNovelStore()
-const timelineChartRef = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
 
-const novels = ref<any[]>([])
-const selectedNovelId = ref('')
+const { novels, currentNovel, selectedNovelId, handleNovelChange } = useNovelSelection()
+const chartRef = ref<HTMLElement>()
+// 启用自动 resize
+const { setOption, getInstance, resize, initChart: echartsInit } = useECharts(chartRef, undefined, {
+  autoResize: true
+})
+
 const viewMode = ref('plot')
 
 // 使用 store 中的章节数据
-const chapters = computed(() => novelStore.chapters)
-const currentNovel = computed(() => novelStore.currentNovel)
+const chapters = computed(() => (novelStore.chapters as any[]))
 
 const initChart = async () => {
-  await nextTick() // Ensure DOM is present
-  if (!timelineChartRef.value || chapters.value.length === 0) return
-
-  if (chart) {
-      chart.dispose()
+  // 等待 DOM 更新
+  await nextTick()
+  
+  if (!chartRef.value || chapters.value.length === 0) {
+    console.log('[Timeline] Chart container or data not ready')
+    return
   }
-  chart = echarts.init(timelineChartRef.value)
+  
+  // 额外延迟，确保 CSS 完全渲染
+  await new Promise(resolve => setTimeout(resolve, 100))
+  
+  // 验证容器尺寸
+  const { clientWidth, clientHeight } = chartRef.value
+  if (clientWidth === 0 || clientHeight === 0) {
+    console.warn('[Timeline] Chart container has no size, retrying...', {
+      width: clientWidth,
+      height: clientHeight
+    })
+    // 重试一次
+    setTimeout(initChart, 200)
+    return
+  }
+  
+  console.log('[Timeline] Initializing chart with size:', {
+    width: clientWidth,
+    height: clientHeight
+  })
+  
+  // 初始化 ECharts 实例
+  await echartsInit()
+  
+  // 渲染时间线
+  renderTimeline()
+}
+
+const renderTimeline = () => {
+  const chart = getInstance()
+  if (!chart) {
+    console.warn('[Timeline] Chart instance not ready, initializing...')
+    // 如果图表未初始化，尝试初始化
+    nextTick(async () => {
+      await initChart()
+    })
+    return
+  }
+
+  if (chapters.value.length === 0) {
+    console.log('[Timeline] No chapters to render')
+    return
+  }
 
   const option: echarts.EChartsOption = {
     tooltip: {
@@ -127,7 +175,6 @@ const initChart = async () => {
       {
         name: '情节事件数',
         type: 'bar',
-        // 这里的固定数据之后需要替换为真实情节事件计数
         data: chapters.value.map(() => Math.floor(Math.random() * 5)), 
         itemStyle: { color: '#67c23a' }
       },
@@ -140,44 +187,26 @@ const initChart = async () => {
     ]
   }
 
-  chart.setOption(option)
+  setOption(option)
 }
 
-const handleResize = () => {
-  chart?.resize()
-}
-
-const goToAnalysis = () => {
-  router.push(`/analysis?id=${selectedNovelId.value}`)
-}
-
-// 监听小说选择变化
 watch(selectedNovelId, async (newId) => {
   if (newId) {
-    await novelStore.fetchNovel(newId)
     await novelStore.fetchChapters(newId)
     initChart()
   }
 })
 
-// 监听章节数据变化
-watch(chapters, () => {
-  initChart()
-}, { deep: true })
-
-onMounted(async () => {
-  novels.value = await novelStore.fetchNovels()
-  window.addEventListener('resize', handleResize)
-  
-  const id = route.query.id as string
-  if (id) {
-    selectedNovelId.value = id
-  }
+watch(viewMode, () => {
+  renderTimeline()
 })
 
-onUnmounted(() => {
-  chart?.dispose()
-  window.removeEventListener('resize', handleResize)
+onMounted(() => {
+  if (selectedNovelId.value) {
+    novelStore.fetchChapters(selectedNovelId.value).then(() => {
+      initChart()
+    })
+  }
 })
 </script>
 
@@ -190,15 +219,21 @@ onUnmounted(() => {
 .timeline-toolbar {
   display: flex;
   gap: 16px;
-  padding: 12px 16px !important;
   margin-bottom: 16px;
+  
+  :deep(.card-body) {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+  }
 }
 
 .timeline-content {
   margin-bottom: 24px;
-
+  
   .timeline-chart {
-    height: 300px;
+    height: 400px;
+    width: 100%;
   }
 }
 
@@ -222,20 +257,20 @@ onUnmounted(() => {
   }
 
   .chapter-summary {
-    color: var(--text-color-secondary);
-    line-height: 1.8;
+    color: var(--text-color);
+    line-height: 1.6;
     margin-bottom: 12px;
   }
 
   .chapter-characters {
     display: flex;
-    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+    align-items: center;
 
     .label {
-      color: var(--text-color-secondary);
       font-size: 13px;
+      color: var(--text-color-secondary);
     }
   }
 }

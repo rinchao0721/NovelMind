@@ -1,6 +1,5 @@
 <template>
-  <div class="novel-selector card">
-    <h3>选择小说</h3>
+  <BaseCard title="选择小说" class="novel-selector">
     <el-select 
       :model-value="modelValue" 
       placeholder="请选择要分析的小说"
@@ -24,18 +23,20 @@
         <el-descriptions-item label="章节数">{{ currentNovel.total_chapters }}</el-descriptions-item>
         <el-descriptions-item label="总字数">{{ formatNumber(currentNovel.total_words) }}</el-descriptions-item>
         <el-descriptions-item label="分析状态">
-          <el-tag :type="getStatusType(currentNovel.analysis_status)">
-            {{ getStatusText(currentNovel.analysis_status) }}
-          </el-tag>
+          <StatusTag :status="currentNovel.analysis_status" />
         </el-descriptions-item>
       </el-descriptions>
     </div>
-  </div>
+  </BaseCard>
 </template>
 
 <script setup lang="ts">
 import { PropType } from 'vue'
 import type { Novel } from '@/types'
+import { formatNumber } from '@/utils/format'
+// 导入公共资源
+import BaseCard from '@/components/common/BaseCard.vue'
+import StatusTag from '@/components/common/StatusTag.vue'
 
 defineProps({
   modelValue: {
@@ -53,40 +54,9 @@ defineProps({
 })
 
 defineEmits(['update:modelValue', 'change'])
-
-const formatNumber = (num: number | undefined) => {
-  return num ? num.toLocaleString() : '0'
-}
-
-const getStatusType = (status: string | undefined) => {
-  switch (status) {
-    case 'completed': return 'success'
-    case 'analyzing': return 'primary'
-    case 'failed': return 'danger'
-    default: return 'info'
-  }
-}
-
-const getStatusText = (status: string | undefined) => {
-  switch (status) {
-    case 'completed': return '已完成'
-    case 'analyzing': return '分析中'
-    case 'failed': return '失败'
-    case 'pending': return '待分析'
-    default: return '未知'
-  }
-}
 </script>
 
 <style lang="scss" scoped>
-.card {
-  h3 {
-    font-size: 16px;
-    margin: 0 0 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-  }
-}
 .novel-info {
   margin-top: 16px;
 }

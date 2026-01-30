@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional, AsyncGenerator
 import httpx
 import logging
 import json
+from utils.json_utils import safe_json_loads
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +113,12 @@ class OpenAIProvider(BaseLLMProvider):
                         if line.strip() == "[DONE]":
                             break
                         try:
-                            data = json.loads(line)
-                            if "choices" in data and len(data["choices"]) > 0:
+                            data = safe_json_loads(line)
+                            if data and "choices" in data and len(data["choices"]) > 0:
                                 delta = data["choices"][0].get("delta", {})
                                 if "content" in delta:
                                     yield delta["content"]
-                        except json.JSONDecodeError:
+                        except Exception:
                             continue
 
 
@@ -280,12 +281,12 @@ class ClaudeProvider(BaseLLMProvider):
                         if line.strip() == "[DONE]":
                             break
                         try:
-                            data = json.loads(line)
-                            if data.get("type") == "content_block_delta":
+                            data = safe_json_loads(line)
+                            if data and data.get("type") == "content_block_delta":
                                 delta = data.get("delta", {})
                                 if delta.get("type") == "text_delta":
                                     yield delta.get("text", "")
-                        except json.JSONDecodeError:
+                        except Exception:
                             continue
 
 
@@ -323,64 +324,13 @@ class GeminiProvider(BaseLLMProvider):
     # Gemini Streaming not implemented yet, fallback to non-streaming
 
 
-class ZhipuProvider(BaseLLMProvider):
+class ZhipuProvider(OpenAIProvider):
     """Zhipu AI (GLM) API provider"""
 
     def __init__(self, api_key: str, model: str = "glm-4", **kwargs):
-        super().__init__(api_key, model, **kwargs)
-        self.base_url = "https://open.bigmodel.cn/api/paas/v4"
-
-    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
-        """Generate chat completion using Zhipu API"""
-        url = f"{self.base_url}/chat/completions"
-
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": kwargs.get("temperature", 0.7),
-            "max_tokens": kwargs.get("max_tokens", 4096),
-        }
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-
-    async def stream_chat(
-        self, messages: List[Dict[str, str]], **kwargs
-    ) -> AsyncGenerator[str, None]:
-        """Generate streaming chat completion using Zhipu API (OpenAI compatible)"""
-        url = f"{self.base_url}/chat/completions"
-
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": kwargs.get("temperature", 0.7),
-            "max_tokens": kwargs.get("max_tokens", 4096),
-            "stream": True,
-        }
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", url, headers=headers, json=payload) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        line = line[6:]  # Remove "data: " prefix
-                        if line.strip() == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(line)
-                            if "choices" in data and len(data["choices"]) > 0:
-                                delta = data["choices"][0].get("delta", {})
-                                if "content" in delta:
-                                    yield delta["content"]
-                        except json.JSONDecodeError:
-                            continue
+        super().__init__(
+            api_key=api_key, model=model, base_url="https://open.bigmodel.cn/api/paas/v4", **kwargs
+        )
 
 
 class BaiduProvider(BaseLLMProvider):
@@ -464,10 +414,10 @@ class BaiduProvider(BaseLLMProvider):
                     if line.startswith("data: "):
                         line = line[6:]
                         try:
-                            data = json.loads(line)
-                            if "result" in data:
+                            data = safe_json_loads(line)
+                            if data and "result" in data:
                                 yield data["result"]
-                        except json.JSONDecodeError:
+                        except Exception:
                             continue
 
 

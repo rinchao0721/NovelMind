@@ -1,14 +1,15 @@
 <template>
   <div class="graph-view">
-    <div class="page-header">
-      <h2>人物关系图谱</h2>
-      <p>可视化展示小说中的人物关系网络</p>
-    </div>
+    <PageHeader title="人物关系图谱" subtitle="可视化展示小说中的人物关系网络" />
 
     <!-- 工具栏 -->
-    <div class="graph-toolbar card">
+    <BaseCard class="graph-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="selectedNovelId" placeholder="选择小说" @change="loadGraphData">
+        <el-select 
+          v-model="selectedNovelId" 
+          placeholder="选择小说" 
+          @change="handleNovelChange"
+        >
           <el-option
             v-for="novel in novels"
             :key="novel.id"
@@ -17,7 +18,7 @@
           />
         </el-select>
 
-        <el-select v-model="layoutType" placeholder="布局方式" @change="updateLayout">
+        <el-select v-model="layoutType" placeholder="布局方式">
           <el-option label="力导向布局" value="force" />
           <el-option label="环形布局" value="circular" />
         </el-select>
@@ -36,163 +37,105 @@
           </el-button>
         </el-button-group>
 
-        <el-button @click="exportImage">
+        <el-button @click="handleExportImage">
           <el-icon><Download /></el-icon>
           导出图片
         </el-button>
       </div>
-    </div>
+    </BaseCard>
 
     <!-- 图谱容器 -->
-    <div class="graph-container card">
-      <div v-if="loading" class="loading-overlay">
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>加载中...</span>
-      </div>
+    <BaseCard class="graph-container" no-padding>
+      <LoadingOverlay :loading="loading" />
       
-      <div v-else-if="!selectedNovelId || (!graphData.nodes.length && !loading)" class="empty-state">
-        <el-icon><Share /></el-icon>
-        <template v-if="!selectedNovelId">
-            <h3>请选择小说</h3>
-            <p>选择上方小说以查看人物关系图谱</p>
-        </template>
-        <template v-else-if="currentNovel && currentNovel.analysis_status !== 'completed'">
-            <h3>尚未进行分析</h3>
-            <p>该小说还未进行人物关系分析</p>
-            <el-button type="primary" @click="goToAnalysis">前往分析</el-button>
-        </template>
-        <template v-else>
-            <h3>暂无图谱数据</h3>
-            <p>分析已完成，但未能构建关系网络</p>
-            <p style="font-size: 12px; margin-top: 5px; color: #f56c6c" v-if="neo4jError">
-                {{ neo4jError }}
-            </p>
-        </template>
-      </div>
+      <EmptyState 
+        v-if="!selectedNovelId || (!graphData.nodes.length && !loading)"
+        :type="!selectedNovelId ? 'search' : 'graph'"
+        :title="getEmptyStateTitle()"
+        :description="getEmptyStateDescription()"
+      >
+        <el-button 
+          v-if="selectedNovelId && currentNovel?.analysis_status !== 'completed'" 
+          type="primary" 
+          @click="goToAnalysis"
+        >
+          前往分析
+        </el-button>
+        <el-button 
+          v-if="selectedNovelId && graphData.nodes.length === 0 && !loading && currentNovel?.analysis_status === 'completed'" 
+          type="primary" 
+          @click="loadGraphData"
+        >
+          重新加载
+        </el-button>
+        <p v-if="neo4jError" class="error-text">{{ neo4jError }}</p>
+      </EmptyState>
 
-      <div ref="chartRef" class="chart" v-show="selectedNovelId && !loading && graphData.nodes.length"></div>
+      <!-- 改用 v-if 替代 v-show，确保 ECharts 仅在容器可见时初始化 -->
+      <div 
+        v-if="selectedNovelId && !loading && graphData.nodes.length"
+        ref="chartRef" 
+        class="chart"
+      ></div>
 
       <!-- 筛选面板 -->
-      <div class="filter-panel" v-if="selectedNovelId && graphData.nodes.length">
-        <h4>关系类型筛选</h4>
-        <el-checkbox-group v-model="visibleRelationTypes" @change="updateGraph">
-          <el-checkbox 
-            v-for="type in relationTypes" 
-            :key="type.value" 
-            :value="type.value"
-          >
-            <span class="relation-type" :style="{ '--color': type.color }">
-              {{ type.label }}
-            </span>
-          </el-checkbox>
-        </el-checkbox-group>
-
-        <h4>重要性筛选</h4>
-        <el-slider
-          v-model="importanceThreshold"
-          :min="0"
-          :max="100"
-          :format-tooltip="(val: number) => `重要性 >= ${val}%`"
-          @change="updateGraph"
-        />
-
-        <h4>统计信息</h4>
-        <div class="stats">
-          <div class="stat-item">
-            <span class="label">人物数量</span>
-            <span class="value">{{ filteredNodes.length }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="label">关系数量</span>
-            <span class="value">{{ filteredLinks.length }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      <GraphFilter 
+        v-if="selectedNovelId && graphData.nodes.length"
+        v-model:visible-relation-types="visibleRelationTypes"
+        v-model:importance-threshold="importanceThreshold"
+        :relation-types="relationTypes"
+        :node-count="filteredNodes.length"
+        :link-count="filteredLinks.length"
+        @change="renderGraph"
+      />
+    </BaseCard>
 
     <!-- 人物详情侧边栏 -->
-    <el-drawer
-      v-model="drawerVisible"
-      :title="selectedCharacter?.name"
-      direction="rtl"
-      size="400px"
-    >
-      <template v-if="selectedCharacter">
-        <div class="character-detail">
-          <div class="detail-section">
-            <h4>基本信息</h4>
-            <el-descriptions :column="1" border>
-              <el-descriptions-item label="别名">
-                {{ selectedCharacter.aliases?.join('、') || '无' }}
-              </el-descriptions-item>
-              <el-descriptions-item label="首次出现">
-                第 {{ selectedCharacter.first_appearance }} 章
-              </el-descriptions-item>
-              <el-descriptions-item label="重要性">
-                <el-progress 
-                  :percentage="Math.round(selectedCharacter.importance * 100)" 
-                  :stroke-width="12"
-                />
-              </el-descriptions-item>
-            </el-descriptions>
-          </div>
-
-          <div class="detail-section">
-            <h4>人物描述</h4>
-            <p>{{ selectedCharacter.description || '暂无描述' }}</p>
-          </div>
-
-          <div class="detail-section">
-            <h4>性格特点</h4>
-            <p>{{ selectedCharacter.personality || '暂无分析' }}</p>
-          </div>
-
-          <div class="detail-section">
-            <h4>相关人物 ({{ selectedCharacterRelations.length }})</h4>
-            <div class="related-characters">
-              <div 
-                v-for="rel in selectedCharacterRelations" 
-                :key="rel.id"
-                class="relation-item"
-                @click="selectCharacterById(rel.targetId)"
-              >
-                <span class="name">{{ rel.targetName }}</span>
-                <el-tag size="small" :color="getRelationColor(rel.type)">
-                  {{ getRelationLabel(rel.type) }}
-                </el-tag>
-              </div>
-              <div v-if="selectedCharacterRelations.length === 0" class="no-relations">
-                暂无关联人物
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-    </el-drawer>
+    <CharacterDrawer 
+      v-model:visible="drawerVisible"
+      :character="selectedCharacter"
+      :relations="selectedCharacterRelations"
+      @select-character="selectCharacterById"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { ref, computed, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { ZoomIn, ZoomOut, FullScreen, Download, Share, Loading } from '@element-plus/icons-vue'
+import { ZoomIn, ZoomOut, FullScreen, Download } from '@element-plus/icons-vue'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel, GraphData } from '@/types'
+import type { Novel, GraphData, Relationship, GraphNode } from '@/types'
+import { getRelationLabel } from '@/utils/relations'
+// 导入公共资源
+import BaseCard from '@/components/common/BaseCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
+import PageHeader from '@/components/common/PageHeader.vue'
+import LoadingOverlay from '@/components/common/LoadingOverlay.vue'
+import { useECharts } from '@/composables/useECharts'
+import { useNovelSelection } from '@/composables/useNovelSelection'
+// 导入子组件
+import GraphFilter from '@/components/graph/GraphFilter.vue'
+import CharacterDrawer from '@/components/graph/CharacterDrawer.vue'
+import type { DrawerCharacter, CharacterRelation } from '@/components/graph/CharacterDrawer.vue'
 
 const router = useRouter()
-const route = useRoute()
 const novelStore = useNovelStore()
 
+const { novels, currentNovel, selectedNovelId, handleNovelChange } = useNovelSelection()
 const chartRef = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
+// 启用自动 resize 和可见性监听
+const { setOption, getInstance, resize, isVisible } = useECharts(chartRef, undefined, {
+  autoResize: true,
+  watchVisibility: true
+})
 
-const novels = ref<Novel[]>([])
-const selectedNovelId = ref('')
-const layoutType = ref('force')
+const layoutType = ref<'force' | 'circular'>('force')
 const drawerVisible = ref(false)
-const selectedCharacter = ref<any>(null)
-const selectedCharacterRelations = ref<any[]>([])
+
+const selectedCharacter = ref<DrawerCharacter | null>(null)
+const selectedCharacterRelations = ref<CharacterRelation[]>([])
 const importanceThreshold = ref(0)
 const loading = ref(false)
 const neo4jError = ref('')
@@ -201,10 +144,26 @@ const graphData = ref<GraphData>({
   links: []
 })
 
-const currentNovel = computed(() => novelStore.currentNovel)
-
 const goToAnalysis = () => {
   router.push(`/analysis?id=${selectedNovelId.value}`)
+}
+
+const getEmptyStateTitle = () => {
+  if (!selectedNovelId.value) return '请选择小说'
+  if (currentNovel.value?.analysis_status !== 'completed') return '尚未进行分析'
+  if (neo4jError.value.includes('Network Error') || neo4jError.value.includes('ERR_CONNECTION')) {
+    return '无法连接到后端服务'
+  }
+  return '暂无图谱数据'
+}
+
+const getEmptyStateDescription = () => {
+  if (!selectedNovelId.value) return '选择上方小说以查看人物关系图谱'
+  if (currentNovel.value?.analysis_status !== 'completed') return '该小说还未进行人物关系分析，请先运行分析任务'
+  if (neo4jError.value.includes('Network Error') || neo4jError.value.includes('ERR_CONNECTION')) {
+    return '请检查后端服务是否正常运行。如果问题持续，请尝试重新启动应用。'
+  }
+  return '分析已完成，但未能构建关系网络。可能是分析过程中未提取到人物关系数据，请尝试重新分析。'
 }
 
 const relationTypes = [
@@ -241,47 +200,30 @@ const loadGraphData = async () => {
   try {
     const data = await novelStore.fetchGraphData(selectedNovelId.value)
     graphData.value = data
-    // 如果没有节点但状态是完成，可能是数据问题
     if (data.nodes.length === 0 && currentNovel.value?.analysis_status === 'completed') {
-       neo4jError.value = '未找到图谱数据，可能是Neo4j连接问题或分析结果为空'
+       neo4jError.value = '未找到图谱数据，可能是分析结果为空'
     }
-    initChart()
   } catch (error) {
     console.error('Failed to load graph data:', error)
     neo4jError.value = '加载失败: ' + (error instanceof Error ? error.message : '未知错误')
   } finally {
     loading.value = false
+    // 等待 loading 变为 false 后，DOM 更新完成再渲染
+    await nextTick()
+    if (graphData.value.nodes.length > 0) {
+      renderGraph()
+    }
   }
 }
 
-// 监听小说选择变化以获取详情
-watch(selectedNovelId, async (newId) => {
+watch(selectedNovelId, (newId) => {
     if (newId) {
-        await novelStore.fetchNovel(newId)
         loadGraphData()
     }
-})
+}, { immediate: true })
 
-const initChart = () => {
-  if (!chartRef.value || graphData.value.nodes.length === 0) return
-
-  if (chart) {
-    chart.dispose()
-  }
-
-  chart = echarts.init(chartRef.value)
-
-  updateGraph()
-
-  chart.on('click', (params: any) => {
-    if (params.dataType === 'node') {
-      showCharacterDetail(params.data)
-    }
-  })
-}
-
-const updateGraph = () => {
-  if (!chart) return
+const renderGraph = () => {
+  if (graphData.value.nodes.length === 0) return
 
   const categories = [
     { name: '主角' },
@@ -292,11 +234,13 @@ const updateGraph = () => {
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'item',
-      formatter: (params: any) => {
-        if (params.dataType === 'node') {
-          return `<b>${params.data.name}</b><br/>重要性: ${(params.data.importance * 100).toFixed(0)}%`
+      formatter: (params: unknown) => {
+        const item = params as echarts.DefaultLabelFormatterCallbackParams
+        if (item.dataType === 'node') {
+          const node = item.data as GraphNode
+          return `<b>${node.name}</b><br/>重要性: ${(node.importance * 100).toFixed(0)}%`
         } else {
-          const link = params.data
+          const link = item.data as GraphLink & { sourceName?: string; targetName?: string }
           return `${link.sourceName || link.source} → ${link.targetName || link.target}<br/>关系: ${getRelationLabel(link.type)}`
         }
       }
@@ -312,7 +256,7 @@ const updateGraph = () => {
     },
     series: [{
       type: 'graph',
-      layout: layoutType.value as 'none' | 'force' | 'circular',
+      layout: layoutType.value,
       data: filteredNodes.value.map(node => ({
         ...node,
         symbolSize: node.importance * 50 + 20,
@@ -357,31 +301,22 @@ const updateGraph = () => {
           fontSize: 14,
           fontWeight: 'bold'
         }
-      },
-      blur: {
-        itemStyle: {
-          opacity: 0.3
-        },
-        lineStyle: {
-          opacity: 0.1
-        }
       }
     }]
   }
 
-  chart.setOption(option, true)
-}
-
-const updateLayout = () => {
-  if (!chart) return
-  chart.setOption({
-    series: [{
-      layout: layoutType.value
-    }]
+  setOption(option)
+  
+  const chart = getInstance()
+  chart?.off('click')
+  chart?.on('click', (params: echarts.ECElementEvent) => {
+    if (params.dataType === 'node') {
+      showCharacterDetail(params.data as GraphNode)
+    }
   })
 }
 
-const showCharacterDetail = (nodeData: any) => {
+const showCharacterDetail = (nodeData: GraphNode & Record<string, any>) => {
   selectedCharacter.value = {
     ...nodeData,
     aliases: nodeData.aliases || [],
@@ -390,7 +325,6 @@ const showCharacterDetail = (nodeData: any) => {
     personality: nodeData.personality || '暂无分析'
   }
   
-  // 获取相关关系
   selectedCharacterRelations.value = graphData.value.links
     .filter(l => l.source === nodeData.id || l.target === nodeData.id)
     .map(l => {
@@ -401,7 +335,7 @@ const showCharacterDetail = (nodeData: any) => {
         id: l.source + '-' + l.target,
         targetId,
         targetName: targetNode?.name || targetId,
-        type: l.type
+        type: l.type as Relationship['type']
       }
     })
   
@@ -420,31 +354,32 @@ const getRelationColor = (type: string): string => {
   return rel?.color || '#c0c4cc'
 }
 
-const getRelationLabel = (type: string): string => {
-  const rel = relationTypes.find(r => r.value === type)
-  return rel?.label || type
-}
-
 const zoomIn = () => {
+  const chart = getInstance()
   if (!chart) return
-  const option = chart.getOption() as any
-  const currentZoom = option.series?.[0]?.zoom || 1
+  const option = chart.getOption() as echarts.EChartsOption
+  const series = option.series as echarts.SeriesOption[]
+  const currentZoom = (series?.[0] as any)?.zoom || 1
   chart.setOption({ series: [{ zoom: currentZoom * 1.2 }] })
 }
 
 const zoomOut = () => {
+  const chart = getInstance()
   if (!chart) return
-  const option = chart.getOption() as any
-  const currentZoom = option.series?.[0]?.zoom || 1
+  const option = chart.getOption() as echarts.EChartsOption
+  const series = option.series as echarts.SeriesOption[]
+  const currentZoom = (series?.[0] as any)?.zoom || 1
   chart.setOption({ series: [{ zoom: currentZoom / 1.2 }] })
 }
 
 const resetZoom = () => {
+  const chart = getInstance()
   if (!chart) return
   chart.setOption({ series: [{ zoom: 1, center: ['50%', '50%'] }] })
 }
 
-const exportImage = () => {
+const handleExportImage = () => {
+  const chart = getInstance()
   if (!chart) return
   const url = chart.getDataURL({
     type: 'png',
@@ -452,34 +387,30 @@ const exportImage = () => {
     backgroundColor: '#fff'
   })
   const link = document.createElement('a')
-  link.download = `${novels.value.find(n => n.id === selectedNovelId.value)?.title || 'graph'}-关系图谱.png`
+  link.download = `${currentNovel.value?.title || 'graph'}-关系图谱.png`
   link.href = url
   link.click()
 }
 
-const handleResize = () => {
-  chart?.resize()
-}
+watch(layoutType, () => {
+  renderGraph()
+})
 
-watch(layoutType, updateLayout)
-
-onMounted(async () => {
-  novels.value = await novelStore.fetchNovels()
-  
-  // 从 URL 获取小说 ID
-  const id = route.query.id as string
-  if (id) {
-    selectedNovelId.value = id
-    // Watch will trigger data loading
+// 监听可见性变化，容器变为可见时调整大小
+watch(isVisible, async (visible) => {
+  if (visible && graphData.value.nodes.length > 0) {
+    await nextTick()
+    resize()
   }
-  
-  window.addEventListener('resize', handleResize)
 })
 
-onUnmounted(() => {
-  chart?.dispose()
-  window.removeEventListener('resize', handleResize)
-})
+// 监听筛选条件变化，调整图表大小
+watch([importanceThreshold, visibleRelationTypes], async () => {
+  if (graphData.value.nodes.length > 0) {
+    await nextTick()
+    resize()
+  }
+}, { deep: true })
 </script>
 
 <style lang="scss" scoped>
@@ -493,8 +424,14 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px !important;
   margin-bottom: 16px;
+  
+  :deep(.card-body) {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 16px;
+  }
 
   .toolbar-left,
   .toolbar-right {
@@ -508,145 +445,30 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   position: relative;
-  padding: 0 !important;
   overflow: hidden;
   min-height: 500px;
 
-  .loading-overlay,
-  .empty-state {
-    position: absolute;
-    inset: 0;
+  :deep(.card-body) {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    color: var(--text-color-secondary);
-    
-    .el-icon {
-      font-size: 48px;
-    }
-    
-    .is-loading {
-      animation: rotating 2s linear infinite;
-    }
+    padding: 0;
   }
 
   .chart {
     flex: 1;
+    width: 100%; // 改为 100%，让 flex 自动计算
+    height: 100%; // 添加明确高度
     min-height: 500px;
+    min-width: 400px; // 添加最小宽度
   }
 
-  .filter-panel {
-    width: 200px;
-    padding: 16px;
-    border-left: 1px solid var(--border-color);
-    background: var(--card-bg);
-    overflow-y: auto;
-
-    h4 {
-      font-size: 13px;
-      color: var(--text-color-secondary);
-      margin: 0 0 12px;
-
-      &:not(:first-child) {
-        margin-top: 20px;
-      }
-    }
-
-    .el-checkbox-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .relation-type {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-
-      &::before {
-        content: '';
-        width: 12px;
-        height: 3px;
-        background: var(--color);
-        border-radius: 2px;
-      }
-    }
-
-    .stats {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-
-      .stat-item {
-        display: flex;
-        justify-content: space-between;
-        font-size: 13px;
-
-        .label {
-          color: var(--text-color-secondary);
-        }
-
-        .value {
-          font-weight: 600;
-          color: var(--primary-color);
-        }
-      }
-    }
+  .error-text {
+    font-size: 12px;
+    margin-top: 5px;
+    color: #f56c6c;
   }
-}
-
-.character-detail {
-  .detail-section {
-    margin-bottom: 24px;
-
-    h4 {
-      font-size: 14px;
-      color: var(--text-color-secondary);
-      margin: 0 0 12px;
-    }
-
-    p {
-      line-height: 1.8;
-      color: var(--text-color);
-    }
-  }
-
-  .related-characters {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-
-    .relation-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
-      background: var(--hover-bg);
-      border-radius: var(--radius);
-      cursor: pointer;
-      transition: background-color 0.2s;
-
-      &:hover {
-        background: var(--border-color);
-      }
-
-      .name {
-        font-weight: 500;
-      }
-    }
-
-    .no-relations {
-      color: var(--text-color-placeholder);
-      text-align: center;
-      padding: 20px;
-    }
-  }
-}
-
-@keyframes rotating {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 </style>

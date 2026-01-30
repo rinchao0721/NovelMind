@@ -1,38 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { novelsApi, analysisApi, charactersApi, relationshipsApi } from '@/api'
-import type { Novel, Character, Relationship, GraphData } from '@/types'
+import { novelsApi, charactersApi, relationshipsApi } from '@/api'
+import type { Novel, Character, Relationship, GraphData, Chapter } from '@/types'
 
-// Analysis types
-export interface AnalysisResult {
-  characterCount: number
-  relationshipCount: number
-  plotCount: number
-  chapterCount: number
-}
-
-export interface AnalysisLog {
-  type: string
-  message: string
-  time: string
-}
 
 export const useNovelStore = defineStore('novel', () => {
   const novels = ref<Novel[]>([])
   const currentNovel = ref<Novel | null>(null)
-  const chapters = ref<any[]>([])
+  const chapters = ref<Chapter[]>([])
   const characters = ref<Character[]>([])
   const relationships = ref<Relationship[]>([])
   const graphData = ref<GraphData | null>(null)
   const loading = ref(false)
-
-  // Analysis state
-  const analyzing = ref(false)
-  const analysisProgress = ref(0)
-  const progressText = ref('')
-  const analysisLogs = ref<AnalysisLog[]>([])
-  const analysisResult = ref<AnalysisResult | null>(null)
-  const currentTaskId = ref('')
 
   // 获取小说列表
   const fetchNovels = async (): Promise<Novel[]> => {
@@ -41,9 +20,8 @@ export const useNovelStore = defineStore('novel', () => {
       const data = await novelsApi.list()
       novels.value = data
       return novels.value
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to fetch novels:', error)
-      // 返回模拟数据用于开发
       novels.value = []
       return novels.value
     } finally {
@@ -67,7 +45,6 @@ export const useNovelStore = defineStore('novel', () => {
       return currentNovel.value!
     } catch (error) {
       console.error('Failed to fetch novel:', error)
-      // 返回模拟数据
       const found = novels.value.find(n => n.id === id)
       if (found) {
         currentNovel.value = found
@@ -89,7 +66,7 @@ export const useNovelStore = defineStore('novel', () => {
       const data = await novelsApi.upload(formData)
       novels.value.unshift(data)
       return data
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to import novel:', error)
       throw error
     } finally {
@@ -129,7 +106,6 @@ export const useNovelStore = defineStore('novel', () => {
       return characters.value
     } catch (error) {
       console.error('Failed to fetch characters:', error)
-      // 返回模拟数据
       characters.value = []
       return characters.value
     }
@@ -143,7 +119,6 @@ export const useNovelStore = defineStore('novel', () => {
       return relationships.value
     } catch (error) {
       console.error('Failed to fetch relationships:', error)
-      // 返回模拟数据
       relationships.value = []
       return relationships.value
     }
@@ -157,112 +132,12 @@ export const useNovelStore = defineStore('novel', () => {
       return graphData.value!
     } catch (error) {
       console.error('Failed to fetch graph data:', error)
-      // 返回模拟数据
       graphData.value = {
         nodes: [],
         links: []
       }
       return graphData.value
     }
-  }
-
-  // 开始分析
-  const startAnalysis = async (novelId: string, options?: { depth?: string; provider?: string; model?: string }) => {
-    try {
-      const result = await analysisApi.startAnalysis(novelId, options)
-      // 更新小说状态
-      const novel = novels.value.find(n => n.id === novelId)
-      if (novel) {
-        novel.analysis_status = 'analyzing'
-      }
-      return result
-    } catch (error) {
-      console.error('Failed to start analysis:', error)
-      throw error
-    }
-  }
-
-  // 获取分析状态
-  const getAnalysisStatus = async (taskId: string) => {
-    try {
-      return await analysisApi.getStatus(taskId)
-    } catch (error) {
-      console.error('Failed to get analysis status:', error)
-      throw error
-    }
-  }
-
-  // 获取分析结果
-  const getAnalysisResults = async (novelId: string) => {
-    try {
-      return await analysisApi.getResults(novelId)
-    } catch (error) {
-      console.error('Failed to get analysis results:', error)
-      throw error
-    }
-  }
-
-  // 重置分析结果
-  const resetAnalysis = async (novelId: string) => {
-    try {
-      await analysisApi.deleteResults(novelId)
-      
-      // Update local state
-      const novel = novels.value.find(n => n.id === novelId)
-      if (novel) {
-        novel.analysis_status = 'pending'
-      }
-      if (currentNovel.value && currentNovel.value.id === novelId) {
-        currentNovel.value.analysis_status = 'pending'
-      }
-      
-      clearAnalysisState()
-    } catch (error) {
-      console.error('Failed to reset analysis:', error)
-      throw error
-    }
-  }
-
-  // 设置分析进度
-  const setAnalysisProgress = (progress: number, text: string = '') => {
-    analysisProgress.value = progress
-    if (text) {
-      progressText.value = text
-    }
-  }
-
-  // 添加分析日志
-  const addAnalysisLog = (type: string, message: string) => {
-    analysisLogs.value.push({
-      type,
-      message,
-      time: new Date().toLocaleTimeString()
-    })
-  }
-
-  // 设置分析结果
-  const setAnalysisResult = (result: AnalysisResult | null) => {
-    analysisResult.value = result
-  }
-
-  // 清空分析状态
-  const clearAnalysisState = () => {
-    analyzing.value = false
-    analysisProgress.value = 0
-    progressText.value = ''
-    analysisLogs.value = []
-    analysisResult.value = null
-    currentTaskId.value = ''
-  }
-
-  // 设置分析中状态
-  const setAnalyzing = (value: boolean) => {
-    analyzing.value = value
-  }
-
-  // 设置当前任务 ID
-  const setCurrentTaskId = (taskId: string) => {
-    currentTaskId.value = taskId
   }
 
   return {
@@ -273,14 +148,6 @@ export const useNovelStore = defineStore('novel', () => {
     relationships,
     graphData,
     loading,
-    // Analysis state
-    analyzing,
-    analysisProgress,
-    progressText,
-    analysisLogs,
-    analysisResult,
-    currentTaskId,
-    // Methods
     fetchNovels,
     fetchNovel,
     fetchChapters,
@@ -288,17 +155,6 @@ export const useNovelStore = defineStore('novel', () => {
     deleteNovel,
     fetchCharacters,
     fetchRelationships,
-    fetchGraphData,
-    startAnalysis,
-    getAnalysisStatus,
-    getAnalysisResults,
-    resetAnalysis,
-    // Analysis methods
-    setAnalysisProgress,
-    addAnalysisLog,
-    setAnalysisResult,
-    clearAnalysisState,
-    setAnalyzing,
-    setCurrentTaskId
+    fetchGraphData
   }
 })

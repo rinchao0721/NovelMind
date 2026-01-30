@@ -55,6 +55,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { UploadFile } from 'element-plus'
+import { formatFileSize } from '@/utils/format'
+import type { Novel } from '@/types'
 
 defineProps<{
   acceptFormats?: string
@@ -62,7 +64,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'import', file: File): void
-  (e: 'success', novel: any): void
+  (e: 'success', novel: Partial<Novel>): void
   (e: 'error', error: Error): void
 }>()
 
@@ -81,12 +83,6 @@ const handleFileChange = (file: UploadFile) => {
 const clearFile = () => {
   selectedFile.value = null
   uploadRef.value?.clearFiles()
-}
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 const startImport = async () => {
@@ -115,8 +111,8 @@ const startImport = async () => {
     
     emit('success', { title: selectedFile.value.name })
     
-  } catch (error: any) {
-    emit('error', error)
+  } catch (error: unknown) {
+    emit('error', error instanceof Error ? error : new Error(String(error)))
   } finally {
     importing.value = false
     selectedFile.value = null

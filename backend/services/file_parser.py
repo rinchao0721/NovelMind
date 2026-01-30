@@ -5,21 +5,15 @@ File parser service for various novel formats
 import re
 from typing import Dict, Any, List, Optional
 
-import chardet
+from utils.encoding_utils import decode_content
+from constants import CHAPTER_PATTERNS
 
 
 class FileParser:
     """Parse various file formats to extract novel content"""
 
     # Common chapter title patterns for Chinese novels
-    CHAPTER_PATTERNS = [
-        r"第[一二三四五六七八九十百千万零\d]+[章节回][\s:：]?.*",
-        r"[【\[]?第[\d一二三四五六七八九十百千万零]+[章节回][】\]]?.*",
-        r"Chapter\s+\d+.*",
-        r"CHAPTER\s+\d+.*",
-        r"卷[一二三四五六七八九十\d]+.*",
-        r"^\d+[\.\s、].*",
-    ]
+    CHAPTER_PATTERNS = CHAPTER_PATTERNS
 
     def __init__(self):
         self.chapter_pattern = re.compile(
@@ -42,22 +36,8 @@ class FileParser:
 
     async def _parse_txt(self, content: bytes, filename: str) -> Dict[str, Any]:
         """Parse TXT file"""
-        # Detect encoding
-        detected = chardet.detect(content)
-        encoding = detected.get("encoding", "utf-8")
-
-        try:
-            text = content.decode(encoding)
-        except UnicodeDecodeError:
-            # Fallback encodings
-            for enc in ["utf-8", "gbk", "gb2312", "gb18030", "big5"]:
-                try:
-                    text = content.decode(enc)
-                    break
-                except UnicodeDecodeError:
-                    continue
-            else:
-                text = content.decode("utf-8", errors="ignore")
+        # Use centralized decoding utility
+        text = decode_content(content)
 
         # Extract title from filename
         title = filename.rsplit(".", 1)[0]

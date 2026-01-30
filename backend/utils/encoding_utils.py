@@ -5,6 +5,7 @@ Encoding detection and conversion utilities
 from typing import Optional, Tuple
 
 import chardet
+from constants import COMMON_ENCODINGS, CHINESE_ENCODINGS
 
 
 def detect_encoding(content: bytes) -> Tuple[str, float]:
@@ -52,8 +53,7 @@ def decode_content(content: bytes, encoding: Optional[str] = None) -> str:
         encodings_to_try.append(detected)
 
     # Common fallback encodings
-    fallbacks = ["utf-8", "gbk", "gb18030", "big5", "latin-1"]
-    for enc in fallbacks:
+    for enc in COMMON_ENCODINGS:
         if enc not in encodings_to_try:
             encodings_to_try.append(enc)
 

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { AnalysisConfig, ProviderConfig, Settings } from '@/types'
 
 // Initial base URL - will be updated by setApiBaseUrl
 const api = axios.create({
@@ -9,19 +10,63 @@ const api = axios.create({
   }
 })
 
+// Track API connection status
+let isConnected = false
+let lastConnectionCheck = 0
+const CONNECTION_CHECK_INTERVAL = 5000 // 5 seconds
+
 // Function to update the base URL dynamically
 export const setApiBaseUrl = (port: number) => {
-  api.defaults.baseURL = `http://localhost:${port}`
-  console.log(`[API] Base URL updated to: ${api.defaults.baseURL}`)
+  const newBaseURL = `http://localhost:${port}`
+  api.defaults.baseURL = newBaseURL
+  console.log(`[API] Base URL updated to: ${newBaseURL}`)
+  
+  // Reset connection status when URL changes
+  isConnected = false
+  lastConnectionCheck = 0
+}
+
+// Function to check API connection
+export const checkApiConnection = async (): Promise<boolean> => {
+  try {
+    const response = await api.get('/health', { timeout: 3000 })
+    isConnected = response.status === 200
+    lastConnectionCheck = Date.now()
+    console.log(`[API] Health check: ${isConnected ? '✅ Connected' : '❌ Failed'}`)
+    return isConnected
+  } catch (error) {
+    isConnected = false
+    lastConnectionCheck = Date.now()
+    console.error('[API] Health check failed:', error)
+    return false
+  }
+}
+
+// Get current connection status
+export const getConnectionStatus = () => {
+  return {
+    isConnected,
+    lastCheck: lastConnectionCheck,
+    baseURL: api.defaults.baseURL
+  }
 }
 
 // 请求拦截器
 api.interceptors.request.use(
-  (config) => {
-    // 可以在这里添加认证 token 等
+  async (config) => {
+    // Periodic connection check
+    const now = Date.now()
+    if (!isConnected || (now - lastConnectionCheck > CONNECTION_CHECK_INTERVAL)) {
+      // Don't check during health check to avoid recursion
+      if (!config.url?.includes('/health')) {
+        await checkApiConnection()
+      }
+    }
+    
     return config
   },
   (error) => {
+    console.error('[API] Request error:', error)
     return Promise.reject(error)
   }
 )
@@ -29,6 +74,9 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
+    // Mark as connected on successful response
+    isConnected = true
+    
     // Log successful requests (optional: filter by method to reduce noise)
     if (response.config.method !== 'get') {
       console.log(`[API] Success: ${response.config.method?.toUpperCase()} ${response.config.url}`, response.data)
@@ -36,12 +84,25 @@ api.interceptors.response.use(
     return response
   },
   (error) => {
+    // Mark as disconnected on error
+    isConnected = false
+    
     // 统一错误处理
     if (error.response) {
       const { status, data } = error.response
       console.error(`[API] Error ${status}:`, data)
     } else if (error.request) {
-      console.error('[API] Network Error:', error.message)
+      console.error('[API] Network Error - No response received')
+      console.error('[API] Request config:', {
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        method: error.config?.method
+      })
+      console.error('[API] Possible causes:')
+      console.error('  1. Backend server is not running')
+      console.error('  2. Backend is running on a different port')
+      console.error('  3. CORS configuration issue')
+      console.error(`  4. Current base URL: ${api.defaults.baseURL}`)
     } else {
       console.error('[API] Request Setup Error:', error.message)
     }
@@ -60,23 +121,17 @@ export const settingsApi = {
   },
 
   // Save all settings
-  async saveSettings(settings: Record<string, unknown>) {
+  async saveSettings(settings: Partial<Settings>) {
     const response = await api.post('/api/settings', settings)
     return response.data
   },
 
   // Test LLM provider connection
-  async testProvider(provider: string, config: Record<string, unknown>) {
+  async testProvider(provider: string, config: ProviderConfig) {
     const response = await api.post('/api/settings/test-provider', {
       provider,
       config
     })
-    return response.data
-  },
-
-  // Test Neo4j connection
-  async testNeo4j(config: { uri: string; user: string; password: string }) {
-    const response = await api.post('/api/settings/test-neo4j', config)
     return response.data
   },
 
@@ -133,7 +188,7 @@ export const novelsApi = {
 // Analysis API
 export const analysisApi = {
   // Start novel analysis
-  async startAnalysis(novelId: string, options?: { depth?: string; provider?: string; model?: string }) {
+  async startAnalysis(novelId: string, options?: AnalysisConfig) {
     const response = await api.post('/api/analysis/start', {
       novel_id: novelId,
       ...options
@@ -147,15 +202,27 @@ export const analysisApi = {
     return response.data
   },
 
-  // Get analysis results
+  // Get analysis result by task ID
+  async getResult(taskId: string) {
+    const response = await api.get(`/api/analysis/${taskId}/result`)
+    return response.data
+  },
+
+  // Get analysis results for a novel (latest completed)
   async getResults(novelId: string) {
     const response = await api.get(`/api/analysis/${novelId}/results`)
     return response.data
   },
 
-  // Delete analysis results
+  // Delete all analysis results for a novel
   async deleteResults(novelId: string) {
     const response = await api.delete(`/api/analysis/${novelId}/results`)
+    return response.data
+  },
+
+  // Cancel a running task
+  async cancelAnalysis(taskId: string) {
+    const response = await api.post(`/api/analysis/${taskId}/cancel`)
     return response.data
   }
 }
@@ -175,7 +242,7 @@ export const charactersApi = {
   },
 
   // Update character
-  async update(characterId: string, data: Record<string, unknown>) {
+  async update(characterId: string, data: Partial<import('@/types').Character>) {
     const response = await api.put(`/api/characters/${characterId}`, data)
     return response.data
   }

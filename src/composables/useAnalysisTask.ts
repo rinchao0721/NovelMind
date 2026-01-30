@@ -1,25 +1,24 @@
 import { ref, onUnmounted } from 'vue'
-import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useNovelStore } from '@/stores/novel'
-import type { Novel } from '@/types'
+import { useAnalysisStore } from '@/stores/analysis'
+import type { Novel, AnalysisTask, AnalysisConfig } from '@/types'
 
 export function useAnalysisTask() {
+
   const novelStore = useNovelStore()
+  const analysisStore = useAnalysisStore()
+  
   const { 
     analyzing, 
     analysisProgress, 
     progressText, 
     analysisLogs, 
-    analysisResult, 
-    currentTaskId 
-  } = storeToRefs(novelStore)
+    analysisResult,
+    currentTask
+  } = storeToRefs(analysisStore)
 
   const pollingInterval = ref<number | null>(null)
-
-  const addLog = (type: string, message: string) => {
-    novelStore.addAnalysisLog(type, message)
-  }
 
   const stopPolling = () => {
     if (pollingInterval.value) {
@@ -33,33 +32,26 @@ export function useAnalysisTask() {
 
     pollingInterval.value = window.setInterval(async () => {
       try {
-        if (!currentTaskId.value) return
+        if (!currentTask.value?.id) return
 
-        const status = await novelStore.getAnalysisStatus(currentTaskId.value)
+        const status = await analysisStore.getAnalysisStatus(currentTask.value.id)
         
-        novelStore.setAnalysisProgress(status.progress || 0, status.message || '分析中...')
+        analysisStore.setAnalysisProgress(status.progress || 0, status.error_message || '分析中...')
         
         if (status.status === 'completed') {
           stopPolling()
           
-          // 1. Mark not analyzing
-          novelStore.setAnalyzing(false) 
-          
-          // 2. Refresh novel details to update analysis_status to 'completed' globally
+          // Refresh novel details to update analysis_status to 'completed' globally
           if (novelStore.currentNovel?.id) {
              await novelStore.fetchNovel(novelStore.currentNovel.id)
           }
 
-          // 3. Load results if novelId available (we rely on view to watch status or user to refresh, 
-          // but fetching novel above helps triggers)
-          
           ElMessage.success('分析完成')
-          addLog('success', '分析完成!')
+          analysisStore.addAnalysisLog('success', '分析完成!')
         } else if (status.status === 'failed') {
           stopPolling()
-          ElMessage.error('分析失败: ' + (status.error || '未知错误'))
-          novelStore.setAnalyzing(false)
-          addLog('error', '分析失败: ' + (status.error || '未知错误'))
+          ElMessage.error('分析失败: ' + (status.error_message || '未知错误'))
+          analysisStore.addAnalysisLog('error', '分析失败: ' + (status.error_message || '未知错误'))
         }
       } catch (error) {
         console.error('Polling error:', error)
@@ -80,46 +72,54 @@ export function useAnalysisTask() {
     for (const step of steps) {
       if (!analyzing.value) break // Stop if cancelled
       await new Promise(resolve => setTimeout(resolve, 1500))
-      novelStore.setAnalysisProgress(step.progress, step.message)
-      addLog(step.progress === 100 ? 'success' : 'loading', step.message)
+      analysisStore.setAnalysisProgress(step.progress, step.message)
+      analysisStore.addAnalysisLog(step.progress === 100 ? 'success' : 'loading', step.message)
     }
 
     if (!analyzing.value) return
 
-    // Mock result
-    novelStore.setAnalysisResult({
-      characterCount: 28,
-      relationshipCount: 45,
-      plotCount: 12,
-      chapterCount: currentNovel?.total_chapters || 0
-    })
+    // Mock result (normally we'd fetch actual results here)
+    if (currentNovel?.id) {
+        try {
+            await analysisStore.getAnalysisResult(currentNovel.id)
+        } catch (e) {
+            // Fallback for simulation
+            analysisResult.value = {
+                task_id: 'simulated',
+                novel_id: currentNovel.id,
+                character_count: 28,
+                relationship_count: 45,
+                plot_count: 12,
+                chapter_count: currentNovel?.total_chapters || 0,
+                characters: [],
+                relationships: []
+            }
+        }
+    }
 
     if (currentNovel) {
       currentNovel.analysis_status = 'completed'
     }
 
     ElMessage.success('分析完成')
-    novelStore.setAnalyzing(false)
   }
 
-  const startAnalysis = async (novelId: string, config: any, currentNovel: Novel | null) => {
+  const startAnalysis = async (novelId: string, config: AnalysisConfig, currentNovel: Novel | null) => {
     if (!novelId) return
 
-    novelStore.clearAnalysisState()
-    novelStore.setAnalyzing(true)
+    analysisStore.clearState()
 
     try {
-      addLog('loading', '正在初始化分析任务...')
+      analysisStore.addAnalysisLog('loading', '正在初始化分析任务...')
 
-      const result = await novelStore.startAnalysis(novelId, {
+      const result = await analysisStore.startAnalysis(novelId, {
         depth: config.depth,
         provider: config.provider,
         model: config.model
       })
 
-      if (result.taskId) {
-        novelStore.setCurrentTaskId(result.taskId)
-        addLog('success', '分析任务已创建')
+      if (result.id) {
+        analysisStore.addAnalysisLog('success', '分析任务已创建')
         startPolling()
       } else {
         await simulateAnalysis(currentNovel)
@@ -127,15 +127,15 @@ export function useAnalysisTask() {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '未知错误'
       ElMessage.error('启动分析失败: ' + message)
-      addLog('error', '分析失败: ' + message)
-      novelStore.setAnalyzing(false)
+      analysisStore.addAnalysisLog('error', '分析失败: ' + message)
     }
   }
 
   const cancelAnalysis = () => {
     stopPolling()
-    novelStore.setAnalyzing(false)
-    addLog('info', '分析已取消')
+    if (currentTask.value?.id) {
+        analysisStore.cancelAnalysis(currentTask.value.id)
+    }
   }
 
   // Cleanup on unmount
@@ -152,6 +152,6 @@ export function useAnalysisTask() {
     startAnalysis,
     cancelAnalysis,
     stopPolling,
-    startPolling // Exposed in case we need to restart polling on mount
+    startPolling
   }
 }

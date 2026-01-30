@@ -63,7 +63,9 @@ class SecureSettingsService:
         secure_data = {}
         public_data = {}
 
-        sensitive_keys = [
+        # Providers that should have their contents processed for sensitive keys
+        # We can make this list more dynamic or keep it for known LLM providers
+        known_providers = [
             "openai",
             "claude",
             "gemini",
@@ -72,7 +74,6 @@ class SecureSettingsService:
             "zhipu",
             "baidu",
             "custom",
-            "neo4j",
             "aihubmix",
             "siliconflow",
             "openrouter",
@@ -80,13 +81,20 @@ class SecureSettingsService:
         ]
 
         for key, value in data.items():
-            if key in sensitive_keys and isinstance(value, dict):
-                # Extract and encrypt API keys
+            if (
+                key in known_providers or "api" in key.lower() or "db" in key.lower()
+            ) and isinstance(value, dict):
+                # Extract and encrypt API keys for known providers or anything looks like API/DB config
                 secure_data[key] = {}
                 public_data[key] = {}
 
                 for k, v in value.items():
-                    if "key" in k.lower() or "password" in k.lower() or "secret" in k.lower():
+                    if (
+                        "key" in k.lower()
+                        or "password" in k.lower()
+                        or "secret" in k.lower()
+                        or "token" in k.lower()
+                    ):
                         if v:  # Only store non-empty values
                             secure_data[key][k] = self._encrypt(str(v))
                     else:

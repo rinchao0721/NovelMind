@@ -1,6 +1,5 @@
 <template>
-  <div class="analysis-progress card">
-    <h3>分析进度</h3>
+  <BaseCard title="分析进度" class="analysis-progress">
     <el-progress 
       :percentage="progress" 
       :status="progress === 100 ? 'success' : ''"
@@ -24,12 +23,14 @@
         <span class="log-time">{{ log.time }}</span>
       </div>
     </div>
-  </div>
+  </BaseCard>
 </template>
 
 <script setup lang="ts">
 import { PropType } from 'vue'
 import { SuccessFilled, Loading, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
+import BaseCard from '@/components/common/BaseCard.vue'
+import type { AnalysisLog } from '@/types'
 
 defineProps({
   progress: {
@@ -41,21 +42,13 @@ defineProps({
     default: ''
   },
   logs: {
-    type: Array as PropType<Array<{ type: string; message: string; time: string }>>,
+    type: Array as PropType<AnalysisLog[]>,
     default: () => []
   }
 })
 </script>
 
 <style lang="scss" scoped>
-.card {
-  h3 {
-    font-size: 16px;
-    margin: 0 0 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
-  }
-}
 .analysis-progress {
   .progress-text {
     text-align: center;

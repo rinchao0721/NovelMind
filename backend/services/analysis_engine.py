@@ -11,6 +11,11 @@ from database.sqlite_db import get_db
 
 from services.llm_service import LLMService
 from utils.logger import logger
+from constants import (
+    ANALYSIS_SAMPLE_SIZES,
+    ANALYSIS_SUMMARY_LIMITS,
+    MAX_CONCURRENT_LLM_REQUESTS,
+)
 
 
 class AnalysisEngine:
@@ -151,8 +156,11 @@ class AnalysisEngine:
 
         # Combine chapter texts for analysis
         # For deeper analysis, analyze more chapters
-        sample_size = {"quick": 3, "standard": 10, "deep": len(chapters)}[depth]
-        sampled_chapters = chapters[:sample_size]
+        sample_limit = ANALYSIS_SAMPLE_SIZES.get(depth, 10)
+        if sample_limit == -1:
+            sample_limit = len(chapters)
+
+        sampled_chapters = chapters[:sample_limit]
 
         combined_text = "\n\n".join(
             [f"【{ch['title']}】\n{ch['content'][:3000]}" for ch in sampled_chapters]
@@ -221,8 +229,11 @@ class AnalysisEngine:
         model: Optional[str] = None,
     ) -> List[Dict]:
         """Analyze relationships between characters"""
-        sample_size = {"quick": 3, "standard": 10, "deep": len(chapters)}[depth]
-        sampled_chapters = chapters[:sample_size]
+        sample_limit = ANALYSIS_SAMPLE_SIZES.get(depth, 10)
+        if sample_limit == -1:
+            sample_limit = len(chapters)
+
+        sampled_chapters = chapters[:sample_limit]
 
         combined_text = "\n\n".join(
             [f"【{ch['title']}】\n{ch['content'][:2000]}" for ch in sampled_chapters]
@@ -325,13 +336,16 @@ class AnalysisEngine:
     ) -> List[Dict]:
         """Generate chapter summaries with concurrency control"""
         # Limit number of summaries based on depth
-        max_chapters = {"quick": 5, "standard": 20, "deep": len(chapters)}[depth]
-        target_chapters = chapters[:max_chapters]
+        limit = ANALYSIS_SUMMARY_LIMITS.get(depth, 20)
+        if limit == -1:
+            limit = len(chapters)
+
+        target_chapters = chapters[:limit]
 
         logger.info(f"Generating summaries for {len(target_chapters)} chapters")
 
         # Concurrency control
-        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent requests
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_REQUESTS)
 
         async def process_chapter(chapter: Dict) -> Optional[Dict]:
             async with semaphore:

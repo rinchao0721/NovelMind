@@ -8,6 +8,8 @@ from datetime import datetime
 
 from database.sqlite_db import get_db
 from utils.logger import logger
+from utils.json_utils import safe_json_loads
+from constants import RELATIONSHIP_TYPE_NAMES, EVENT_TYPE_NAMES
 
 
 class ExportService:
@@ -68,10 +70,7 @@ class ExportService:
                     )
                     characters_rows = await cursor.fetchall()
                     for row in characters_rows:
-                        try:
-                            aliases = json.loads(row[3]) if row[3] else []
-                        except json.JSONDecodeError:
-                            aliases = []
+                        aliases = safe_json_loads(row[3], [])
 
                         characters.append(
                             {
@@ -196,20 +195,11 @@ class ExportService:
                     rel_by_type[rel_type] = []
                 rel_by_type[rel_type].append(rel)
 
-            type_names = {
-                "family": "家庭关系",
-                "friend": "朋友关系",
-                "enemy": "敌对关系",
-                "lover": "恋人关系",
-                "colleague": "同事关系",
-                "other": "其他关系",
-            }
-
             # Create character id to name mapping
             char_map = {c["id"]: c["name"] for c in characters}
 
             for rel_type, rels in rel_by_type.items():
-                lines.append(f"### {type_names.get(rel_type, rel_type)}\n")
+                lines.append(f"### {RELATIONSHIP_TYPE_NAMES.get(rel_type, rel_type)}\n")
                 for rel in rels:
                     source_name = char_map.get(rel["source_id"], rel["source_id"])
                     target_name = char_map.get(rel["target_id"], rel["target_id"])
@@ -236,15 +226,8 @@ class ExportService:
                 )
                 lines.append(f"### {i}. {event['title']} {importance_indicator}\n")
                 if event.get("event_type"):
-                    type_names = {
-                        "conflict": "冲突",
-                        "revelation": "揭示",
-                        "turning_point": "转折点",
-                        "climax": "高潮",
-                        "resolution": "解决",
-                    }
                     lines.append(
-                        f"**类型**: {type_names.get(event['event_type'], event['event_type'])}\n"
+                        f"**类型**: {EVENT_TYPE_NAMES.get(event['event_type'], event['event_type'])}\n"
                     )
                 if event.get("description"):
                     lines.append(f"{event['description']}\n")

@@ -12,6 +12,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import type { GraphData, GraphNode, GraphLink } from '@/types'
+import { getRelationLabel } from '@/utils/relations'
 
 const props = withDefaults(defineProps<{
   data: GraphData | null
@@ -59,15 +60,16 @@ const initChart = () => {
   chart.setOption({
     tooltip: {
       trigger: 'item',
-      formatter: (params: any) => {
-        if (params.dataType === 'node') {
-          const node = params.data
+      formatter: (params: unknown) => {
+        const item = params as echarts.DefaultLabelFormatterCallbackParams
+        if (item.dataType === 'node') {
+          const node = item.data as GraphNode
           return `
             <strong>${node.name}</strong><br/>
             重要性: ${((node.importance || 0.5) * 100).toFixed(0)}%
           `
-        } else if (params.dataType === 'edge') {
-          const link = params.data
+        } else if (item.dataType === 'edge') {
+          const link = item.data as GraphLink
           return `
             <strong>${link.source} → ${link.target}</strong><br/>
             关系: ${getRelationLabel(link.type)}<br/>
@@ -114,7 +116,7 @@ const initChart = () => {
   })
   
   // Event handlers
-  chart.on('click', (params: any) => {
+  chart.on('click', (params: echarts.ECElementEvent) => {
     if (params.dataType === 'node') {
       emit('node-click', params.data)
     } else if (params.dataType === 'edge') {
@@ -166,18 +168,6 @@ const getCategoryIndex = (importance: number): number => {
   if (importance >= 0.6) return 1  // 重要角色
   if (importance >= 0.4) return 2  // 配角
   return 3  // 其他
-}
-
-const getRelationLabel = (type: string): string => {
-  const labels: Record<string, string> = {
-    family: '亲属',
-    friend: '朋友',
-    enemy: '敌对',
-    lover: '恋人',
-    colleague: '同事',
-    other: '其他'
-  }
-  return labels[type] || type
 }
 
 const resize = () => {

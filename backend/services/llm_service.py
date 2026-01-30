@@ -8,6 +8,7 @@ import time
 from typing import Dict, Any, Optional, List, Type
 from pydantic import BaseModel, ValidationError
 
+from utils.json_utils import safe_json_loads
 from llm.providers import (
     BaseLLMProvider,
     create_provider,
@@ -375,44 +376,38 @@ class LLMService:
 
     def _extract_json_from_response(self, response: str) -> Optional[Any]:
         """Helper to extract and parse JSON from LLM response safely"""
-        try:
-            # Clean up potential markdown formatting
-            text = response.strip()
-            if text.startswith("```"):
-                # Remove first line (```json or just ```)
-                text = text.split("\n", 1)[1]
-                # Remove last line if it is ```
-                if text.strip().endswith("```"):
-                    text = text.strip()[:-3]
+        # Clean up potential markdown formatting
+        text = response.strip()
+        if text.startswith("```"):
+            # Remove first line (```json or just ```)
+            parts = text.split("\n", 1)
+            if len(parts) > 1:
+                text = parts[1]
+            # Remove last line if it is ```
+            if text.strip().endswith("```"):
+                text = text.strip()[:-3]
 
-            # Try to find array brackets if not already clean
-            # This logic is good for lists, but what if it's a dict?
-            # We'll just look for the first [ or {
-            start_list = text.find("[")
-            start_dict = text.find("{")
+        # Try to find array brackets if not already clean
+        start_list = text.find("[")
+        start_dict = text.find("{")
 
-            start = -1
-            if start_list != -1 and start_dict != -1:
-                start = min(start_list, start_dict)
-            elif start_list != -1:
-                start = start_list
-            elif start_dict != -1:
-                start = start_dict
+        start = -1
+        if start_list != -1 and start_dict != -1:
+            start = min(start_list, start_dict)
+        elif start_list != -1:
+            start = start_list
+        elif start_dict != -1:
+            start = start_dict
 
-            if start >= 0:
-                # Find matching end? Or just take from start
-                # Simple heuristic: look for last ] or }
-                end_list = text.rfind("]")
-                end_dict = text.rfind("}")
-                end = max(end_list, end_dict) + 1
+        if start >= 0:
+            end_list = text.rfind("]")
+            end_dict = text.rfind("}")
+            end = max(end_list, end_dict) + 1
 
-                if end > start:
-                    text = text[start:end]
+            if end > start:
+                text = text[start:end]
 
-            return json.loads(text)
-        except (json.JSONDecodeError, IndexError, AttributeError):
-            # We don't log warning here because complete_with_validation handles it
-            return None
+        return safe_json_loads(text)
 
     async def complete_with_validation(
         self,

@@ -1,42 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import api from '@/api'
-
-export interface Settings {
-  defaultProvider: string
-  openai: {
-    apiKey: string
-    baseUrl: string
-    model: string
-  }
-  claude: {
-    apiKey: string
-    model: string
-  }
-  deepseek: {
-    apiKey: string
-    model: string
-  }
-  qwen: {
-    apiKey: string
-    model: string
-  }
-  custom: {
-    apiKey: string
-    baseUrl: string
-    model: string
-  }
-  neo4j: {
-    uri: string
-    user: string
-    password: string
-  }
-  theme: string
-  language: string
-  defaultAnalysisDepth: string
-  autoSave: boolean
-  dataPath: string
-}
+import { settingsApi } from '@/api'
+import type { Settings, ProviderConfig } from '@/types'
 
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<Settings | null>(null)
@@ -46,8 +11,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const loadSettings = async (): Promise<Settings | null> => {
     loading.value = true
     try {
-      const response = await api.get('/api/settings')
-      settings.value = response.data
+      const data = await settingsApi.loadSettings()
+      settings.value = data
       return settings.value
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -66,7 +31,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const saveSettings = async (newSettings: Settings): Promise<void> => {
     loading.value = true
     try {
-      await api.put('/api/settings', newSettings)
+      await settingsApi.saveSettings(newSettings)
       settings.value = newSettings
     } catch (error) {
       console.error('Failed to save settings to server:', error)
@@ -78,26 +43,12 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // 测试 LLM 连接
-  const testLLMConnection = async (provider: string, config: any): Promise<boolean> => {
+  const testLLMConnection = async (provider: string, config: ProviderConfig): Promise<boolean> => {
     try {
-      const response = await api.post('/api/settings/llm/test', {
-        provider,
-        config
-      })
-      return response.data.success
+      const result = await settingsApi.testProvider(provider, config)
+      return result.success
     } catch (error) {
       console.error('Failed to test LLM connection:', error)
-      return false
-    }
-  }
-
-  // 测试 Neo4j 连接
-  const testNeo4jConnection = async (config: any): Promise<boolean> => {
-    try {
-      const response = await api.post('/api/settings/neo4j/test', config)
-      return response.data.success
-    } catch (error) {
-      console.error('Failed to test Neo4j connection:', error)
       return false
     }
   }
@@ -107,7 +58,6 @@ export const useSettingsStore = defineStore('settings', () => {
     loading,
     loadSettings,
     saveSettings,
-    testLLMConnection,
-    testNeo4jConnection
+    testLLMConnection
   }
 })
