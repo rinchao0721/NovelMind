@@ -110,9 +110,9 @@ jobs:
               -f tag_name="$TAG_NAME" \
               -q .body)
             
-           
+            # Remove " by @username" from release notes
             RELEASE_NOTES=$(echo "$RELEASE_NOTES" | sed -E 's/ by @[a-zA-Z0-9_-]+ in / in /g')
-            ）
+            
             gh release create "$TAG_NAME" \
               --draft \
               --title "NovelMind $TAG_NAME" \
