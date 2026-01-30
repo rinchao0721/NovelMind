@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史以支持打标签
+          fetch-depth: 0 # 获取完整历史
 
       - name: Create Git Tag (Manual Dispatch)
         if: github.event_name == 'workflow_dispatch'
@@ -71,15 +71,68 @@ jobs:
           USE_UV: true 
         run: npm run build:backend
         
-      # Build & Publish Electron App
-      - name: Build & Publish Electron App
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-          # Increase timeout for large file uploads (20 mins)
-          ELECTRON_BUILDER_HTTP_TIMEOUT: 1200000
-        # 使用 publish=always 并强制 releaseType 为 draft (草稿)
-        # 确保完整构建：后端 + UI + Electron主进程
+      - name: Build Electron App
         run: |
           npm run build
-          npx electron-builder --win --publish always -c.publish.releaseType=draft
+          npx electron-builder --win --publish never
         shell: bash
+      
+      # 检查生成的文件
+      - name: Check Build Output
+        shell: bash
+        run: |
+          echo "=== Build output files ==="
+          ls -lh release/ || echo "No release directory"
+          if [ -d "release" ]; then
+            find release -type f -name "*.exe" -o -name "*.exe.blockmap" -o -name "*.yaml" | while read file; do
+              size=$(du -h "$file" | cut -f1)
+              echo "File: $file (Size: $size)"
+            done
+          fi
+      
+      # 创建或获取 GitHub Release
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
+          echo "Creating/updating release for tag: $TAG_NAME"
+          
+          # 检查 Release 是否已存在
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists"
+          else
+            echo "Creating new draft release $TAG_NAME"
+            gh release create "$TAG_NAME" \
+              --draft \
+              --title "NovelMind $TAG_NAME" \
+              --notes "自动构建的发布版本 $TAG_NAME"
+          fi
+      
+      # 上传文件到 Release 
+      - name: Upload Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name || github.ref_name }}"
+          echo "Uploading files to release $TAG_NAME"
+          
+          # 上传所有构建产物
+          cd release
+          
+          # 上传安装包和相关文件
+          for file in *.exe *.exe.blockmap latest.yml; do
+            if [ -f "$file" ]; then
+              echo "Uploading: $file"
+              # gh CLI 会自动处理重试和大文件上传
+              gh release upload "$TAG_NAME" "$file" --clobber || {
+                echo "Failed to upload $file, retrying..."
+                sleep 5
+                gh release upload "$TAG_NAME" "$file" --clobber
+              }
+            fi
+          done
+          
+          echo "Upload complete!"
