@@ -30,8 +30,17 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
-          git tag ${{ github.event.inputs.tag_name }}
-          git push origin ${{ github.event.inputs.tag_name }}
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          TAG_NAME=${{ github.event.inputs.tag_name }}
+          
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists, skipping creation."
+          else
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -68,6 +77,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
           # Increase timeout for large file uploads (20 mins)
           ELECTRON_BUILDER_HTTP_TIMEOUT: 1200000
-        # 使用 publish=always 确保即使没有预先存在的 Release 也会创建草稿
-        run: npx electron-builder --win --publish always -c.publish.releaseType=draft
+        # 使用 publish=always 并强制 releaseType 为 draft (草稿)
+        # 确保完整构建：后端 + UI + Electron主进程
+        run: |
+          npm run build
+          npx electron-builder --win --publish always -c.publish.releaseType=draft
         shell: bash

@@ -3,7 +3,7 @@
     <h4>关系类型筛选</h4>
     <el-checkbox-group 
       :model-value="visibleRelationTypes" 
-      @update:model-value="(val) => $emit('update:visibleRelationTypes', val as string[])"
+      @update:model-value="(val: string[]) => $emit('update:visibleRelationTypes', val)"
       @change="$emit('change')"
     >
       <el-checkbox 
@@ -20,7 +20,7 @@
     <h4>重要性筛选</h4>
     <el-slider
       :model-value="importanceThreshold"
-      @update:model-value="(val) => $emit('update:importanceThreshold', Array.isArray(val) ? val[0] : val)"
+      @update:model-value="(val: number | number[]) => $emit('update:importanceThreshold', Array.isArray(val) ? val[0] : val)"
       :min="0"
       :max="100"
       :format-tooltip="(val: number) => `重要性 >= ${val}%`"
