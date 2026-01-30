@@ -5,7 +5,7 @@ Encoding detection and conversion utilities
 from typing import Optional, Tuple
 
 import chardet
-from constants import COMMON_ENCODINGS, CHINESE_ENCODINGS
+from constants import COMMON_ENCODINGS
 
 
 def detect_encoding(content: bytes) -> Tuple[str, float]:

@@ -3,7 +3,7 @@ JSON processing utilities
 """
 
 import json
-from typing import Any, Optional
+from typing import Any
 from utils.logger import logger
 
 
