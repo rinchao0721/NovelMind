@@ -104,10 +104,26 @@ jobs:
             echo "Release $TAG_NAME already exists"
           else
             echo "Creating new draft release $TAG_NAME"
+            
+            echo "Generating release notes..."
+            RELEASE_NOTES=$(gh api repos/${{ github.repository }}/releases/generate-notes \
+              -f tag_name="$TAG_NAME" \
+              -q .body)
+            
+           
+            RELEASE_NOTES=$(echo "$RELEASE_NOTES" | sed -E 's/ by @[a-zA-Z0-9_-]+ in / in /g')
+            ）
             gh release create "$TAG_NAME" \
               --draft \
               --title "NovelMind $TAG_NAME" \
-              --notes "自动构建的发布版本 $TAG_NAME"
+              --notes "$(cat <<EOF
+          自动构建的发布版本 $TAG_NAME
+          
+          ---
+          
+          $RELEASE_NOTES
+          EOF
+          )"
           fi
       
       # 上传文件到 Release 
@@ -126,7 +142,6 @@ jobs:
           for file in *.exe *.exe.blockmap latest.yml; do
             if [ -f "$file" ]; then
               echo "Uploading: $file"
-              # gh CLI 会自动处理重试和大文件上传
               gh release upload "$TAG_NAME" "$file" --clobber || {
                 echo "Failed to upload $file, retrying..."
                 sleep 5
