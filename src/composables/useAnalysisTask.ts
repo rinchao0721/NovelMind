@@ -36,23 +36,39 @@ export function useAnalysisTask() {
         if (!currentTask.value?.id) return
 
         const status = await analysisStore.getAnalysisStatus(currentTask.value.id)
-        
-        analysisStore.setAnalysisProgress(status.progress || 0, status.error_message || '分析中...')
-        
+
+        // 修复：使用正确的字段
+        const progressMsg = status.progress_message || status.error_message || '分析中...'
+        analysisStore.setAnalysisProgress(status.progress || 0, progressMsg)
+
         if (status.status === 'completed') {
           stopPolling()
-          
-          // Refresh novel details to update analysis_status to 'completed' globally
+
+          // 1. 刷新小说状态
           if (novelStore.currentNovel?.id) {
              await novelStore.fetchNovel(novelStore.currentNovel.id)
           }
 
+          // 2. 加载分析结果（关键修复）
+          try {
+            await analysisStore.getAnalysisResult(status.novel_id)
+          } catch (error) {
+            console.error('Failed to load analysis result:', error)
+          }
+
           ElMessage.success('分析完成')
           analysisStore.addAnalysisLog('success', '分析完成!')
+
         } else if (status.status === 'failed') {
           stopPolling()
           ElMessage.error('分析失败: ' + (status.error_message || '未知错误'))
           analysisStore.addAnalysisLog('error', '分析失败: ' + (status.error_message || '未知错误'))
+
+        } else if (status.status === 'cancelled') {
+          // 新增：处理取消状态
+          stopPolling()
+          ElMessage.info('分析已取消')
+          analysisStore.addAnalysisLog('info', '分析已取消')
         }
       } catch (error) {
         console.error('Polling error:', error)
@@ -108,7 +124,8 @@ export function useAnalysisTask() {
   const startAnalysis = async (novelId: string, config: AnalysisConfig, currentNovel: Novel | null) => {
     if (!novelId) return
 
-    analysisStore.clearState()
+    // Only clear progress state, preserve analysisResult to show old results during re-analysis
+    analysisStore.clearProgressState()
 
     try {
       analysisStore.addAnalysisLog('loading', '正在初始化分析任务...')
@@ -121,6 +138,10 @@ export function useAnalysisTask() {
 
       if (result.id) {
         analysisStore.addAnalysisLog('success', '分析任务已创建')
+
+        // Set initial progress immediately to ensure AnalysisProgress component displays
+        analysisStore.setAnalysisProgress(0, '准备分析...')
+
         startPolling()
       } else {
         await simulateAnalysis(currentNovel)

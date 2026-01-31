@@ -19,8 +19,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
   const startAnalysis = async (novelId: string, config: AnalysisConfig): Promise<AnalysisTask> => {
     loading.value = true
     analyzing.value = true
-    clearState()
-    
+
     try {
       const data = await analysisApi.startAnalysis(novelId, config)
       currentTask.value = data
@@ -114,6 +113,14 @@ export const useAnalysisStore = defineStore('analysis', () => {
     })
   }
 
+  const clearProgressState = () => {
+    currentTask.value = null
+    analysisLogs.value = []
+    analysisProgress.value = 0
+    progressText.value = ''
+    // Note: Does NOT clear analyzing or analysisResult
+  }
+
   const clearState = () => {
     currentTask.value = null
     analysisResult.value = null
@@ -138,6 +145,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     resetAnalysis,
     setAnalysisProgress,
     addAnalysisLog,
+    clearProgressState,
     clearState
   }
 })
