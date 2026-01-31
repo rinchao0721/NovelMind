@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS analysis_tasks (
     novel_id TEXT NOT NULL,
     status TEXT DEFAULT 'pending',
     progress REAL DEFAULT 0,
+    progress_message TEXT DEFAULT '准备中...',
     started_at TEXT,
     completed_at TEXT,
     error_message TEXT,
@@ -123,6 +124,17 @@ async def init_db():
         # Create tables
         await db.executescript(SCHEMA)
         await db.commit()
+
+        # Check if progress_message column exists (for migration)
+        cursor = await db.execute("PRAGMA table_info(analysis_tasks)")
+        columns = await cursor.fetchall()
+        column_names = [col[1] for col in columns]
+
+        if 'progress_message' not in column_names:
+            await db.execute(
+                "ALTER TABLE analysis_tasks ADD COLUMN progress_message TEXT DEFAULT '准备中...'"
+            )
+            await db.commit()
 
 
 @asynccontextmanager

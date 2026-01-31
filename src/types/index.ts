@@ -71,6 +71,7 @@ export interface AnalysisTask {
   novel_id: string
   status: 'pending' | 'analyzing' | 'completed' | 'failed' | 'cancelled'
   progress: number
+  progress_message?: string
   started_at: string | null
   completed_at: string | null
   error_message: string | null

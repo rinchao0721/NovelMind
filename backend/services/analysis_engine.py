@@ -390,7 +390,14 @@ class AnalysisEngine:
     async def _update_progress(self, task_id: str, progress: float, message: Optional[str] = None):
         """Update task progress in database"""
         async with get_db() as db:
-            await db.execute(
-                "UPDATE analysis_tasks SET progress = ? WHERE id = ?", (progress, task_id)
-            )
+            if message:
+                await db.execute(
+                    "UPDATE analysis_tasks SET progress = ?, progress_message = ? WHERE id = ?",
+                    (progress, message, task_id)
+                )
+            else:
+                await db.execute(
+                    "UPDATE analysis_tasks SET progress = ? WHERE id = ?",
+                    (progress, task_id)
+                )
             await db.commit()

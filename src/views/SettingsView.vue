@@ -28,7 +28,8 @@
 
         <!-- 标签页 3: 运行日志 -->
         <el-tab-pane label="运行日志" name="logs">
-          <LogViewer 
+          <LogViewer
+            ref="logViewerRef"
             :active="activeTab === 'logs'"
             @export="exportLogs"
             @clear="clearLogs"
@@ -79,6 +80,8 @@ import PageHeader from '@/components/common/PageHeader.vue'
 import LLMConfig from './settings/LLMConfig.vue'
 import AppConfig from './settings/AppConfig.vue'
 import LogViewer from './settings/LogViewer.vue'
+
+const logViewerRef = ref<InstanceType<typeof LogViewer> | null>(null)
 
 const activeTab = ref('llm')
 const saving = ref(false)
@@ -184,6 +187,10 @@ const clearLogs = async () => {
   try {
     await settingsApi.clearLogs()
     ElMessage.success('日志已清空')
+    // 刷新日志显示
+    if (logViewerRef.value) {
+      await logViewerRef.value.refreshLogs?.()
+    }
   } catch (error) {
     ElMessage.error('清空日志失败')
   }

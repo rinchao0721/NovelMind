@@ -35,6 +35,7 @@ class AnalysisStatusResponse(BaseModel):
     novel_id: str
     status: str
     progress: float
+    progress_message: Optional[str] = '准备中...'
     started_at: Optional[str]
     completed_at: Optional[str]
     error_message: Optional[str]
@@ -157,7 +158,8 @@ async def get_analysis_status(task_id: str):
     async with get_db() as db:
         cursor = await db.execute(
             """
-            SELECT id, novel_id, status, progress, started_at, completed_at, error_message
+            SELECT id, novel_id, status, progress, progress_message,
+                   started_at, completed_at, error_message
             FROM analysis_tasks WHERE id = ?
             """,
             (task_id,),
@@ -172,9 +174,10 @@ async def get_analysis_status(task_id: str):
             novel_id=row[1],
             status=row[2],
             progress=row[3],
-            started_at=row[4],
-            completed_at=row[5],
-            error_message=row[6],
+            progress_message=row[4] or '分析中...',
+            started_at=row[5],
+            completed_at=row[6],
+            error_message=row[7],
         )
 
 
